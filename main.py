@@ -7,7 +7,7 @@ from typing import Optional
 import httpx
 from fastapi import APIRouter, BackgroundTasks, Depends, FastAPI, Header, HTTPException, Query
 from fastapi.responses import FileResponse, StreamingResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 
 DB_PATH = os.getenv("DB_PATH", "crm.db")
 API_KEY = os.getenv("API_KEY", "")
@@ -44,11 +44,12 @@ CREATE INDEX IF NOT EXISTS ix_refills_next ON refills(next_refill_date);
 # поля каждой сущности (без id/created_at)
 FIELDS = {
     "referrers": ["name", "phone", "reward_default", "note"],
-    "clients": ["name", "phone", "address", "referrer_id", "note"],
-    "tanks": ["client_id", "title", "volume_l", "brand", "serial", "address", "interval_days", "note"],
+    "clients": ["name", "phone", "phone2", "telegram", "source", "address", "referrer_id", "note"],
+    "tanks": ["client_id", "title", "volume_l", "brand", "serial", "address", "interval_days",
+              "installed_at", "inspection_date", "note"],
     "refills": ["client_id", "tank_id", "referrer_id", "status", "scheduled_date", "done_date",
                 "volume_l", "price_per_liter", "total_price", "cost_per_liter", "referrer_reward",
-                "paid", "interval_days", "next_refill_date", "note"],
+                "paid", "payment_method", "interval_days", "next_refill_date", "note"],
 }
 
 
@@ -71,11 +72,45 @@ def auth(x_api_key: str = Header(default=""), api_key: str = Query(default="")):
 
 app = FastAPI(title="Gas CRM")
 api = APIRouter(prefix="/api", dependencies=[Depends(auth)])
+ADDED = {  # колонки, добавленные после первой версии: догоняем старые базы
+    "clients": [("phone2", "TEXT"), ("telegram", "TEXT"), ("source", "TEXT")],
+    "tanks": [("installed_at", "TEXT"), ("inspection_date", "TEXT")],
+    "refills": [("payment_method", "TEXT")],
+}
+
+
+def migrate(con):
+    for table, cols in ADDED.items():
+        have = {r["name"] for r in con.execute(f"PRAGMA table_info({table})")}
+        for name, typ in cols:
+            if name not in have:
+                con.execute(f"ALTER TABLE {table} ADD COLUMN {name} {typ}")
+    # даты с опечаткой в годе (например 0002-02-02) обнуляем, иначе запись не отредактировать
+    for table, cols in (("refills", ("scheduled_date", "done_date", "next_refill_date")),
+                        ("tanks", ("installed_at", "inspection_date"))):
+        for col in cols:
+            con.execute(f"UPDATE {table} SET {col}=NULL WHERE {col} IS NOT NULL AND "
+                        f"(length({col})!=10 OR CAST(substr({col},1,4) AS INTEGER) NOT BETWEEN 2000 AND 2100)")
+
+
 with db() as c:
     c.executescript(SCHEMA)
+    migrate(c)
 
 
 # ---------- модели ----------
+def check_date(v):
+    if v in (None, ""):
+        return None
+    try:
+        d = date.fromisoformat(v)
+    except ValueError:
+        raise ValueError("неверная дата, нужен формат ГГГГ-ММ-ДД")
+    if not 2000 <= d.year <= 2100:
+        raise ValueError("год должен быть между 2000 и 2100")
+    return v
+
+
 class Referrer(BaseModel):
     name: str
     phone: Optional[str] = None
@@ -86,6 +121,9 @@ class Referrer(BaseModel):
 class Client(BaseModel):
     name: str
     phone: Optional[str] = None
+    phone2: Optional[str] = None
+    telegram: Optional[str] = None
+    source: Optional[str] = None  # откуда пришёл: рекомендация, реклама, сайт...
     address: Optional[str] = None
     referrer_id: Optional[int] = None
     note: Optional[str] = None
@@ -99,7 +137,11 @@ class Tank(BaseModel):
     serial: Optional[str] = None
     address: Optional[str] = None
     interval_days: Optional[int] = None  # через сколько дней обычно нужна заправка
+    installed_at: Optional[str] = None
+    inspection_date: Optional[str] = None  # дата следующего ТО/освидетельствования
     note: Optional[str] = None
+
+    _d = field_validator("installed_at", "inspection_date")(check_date)
 
 
 class Refill(BaseModel):
@@ -115,9 +157,12 @@ class Refill(BaseModel):
     cost_per_liter: Optional[float] = None  # себестоимость, для маржи
     referrer_reward: Optional[float] = None  # по умолчанию reward_default привёдшего
     paid: bool = False
+    payment_method: Optional[str] = None  # cash | transfer | card | invoice
     interval_days: Optional[int] = None  # по умолчанию из газгольдера
     next_refill_date: Optional[str] = None  # по умолчанию done_date + interval_days
     note: Optional[str] = None
+
+    _d = field_validator("scheduled_date", "done_date", "next_refill_date")(check_date)
 
 
 MODELS = {"referrers": Referrer, "clients": Client, "tanks": Tank, "refills": Refill}
@@ -359,6 +404,103 @@ def make_crud(table: str, model):
                 con.execute(f"DELETE FROM {table} WHERE id=?", (id,))
             except sqlite3.IntegrityError:
                 raise HTTPException(409, "есть связанные записи")
+
+
+# ---------- карточка клиента и обзоры ----------
+def _add_days(d: str, n: int):
+    try:
+        return (date.fromisoformat(d) + timedelta(days=n)).isoformat()
+    except ValueError:
+        return None
+
+
+def tank_summary(done: list, interval_days):
+    """Сводка по выполненным заправкам одного газгольдера."""
+    done = sorted((r for r in done if r["done_date"]), key=lambda r: (r["done_date"], r["id"]))
+    out = {"refills_count": len(done), "liters": round(sum(r["volume_l"] or 0 for r in done), 1),
+           "revenue": round(sum(r["total_price"] or 0 for r in done), 2),
+           "last_done_date": None, "next_refill_date": None, "avg_interval_days": None}
+    if not done:
+        return out
+    last = done[-1]
+    out["last_done_date"] = last["done_date"]
+    try:
+        gaps = [(date.fromisoformat(b["done_date"]) - date.fromisoformat(a["done_date"])).days
+                for a, b in zip(done, done[1:])]
+        if gaps:
+            out["avg_interval_days"] = round(sum(gaps) / len(gaps))
+    except ValueError:
+        pass
+    nxt = last["next_refill_date"]
+    step = interval_days or out["avg_interval_days"]
+    if not nxt and step:
+        nxt = _add_days(last["done_date"], step)
+    out["next_refill_date"] = nxt
+    return out
+
+
+def client_stats(done: list, tanks: list):
+    done = [r for r in done if r["done_date"]]
+    tank_map = {t["id"]: t for t in tanks}
+    groups = {}
+    for r in done:
+        groups.setdefault(r["tank_id"], []).append(r)
+    nexts = [s["next_refill_date"] for tid, lst in groups.items()
+             if (s := tank_summary(lst, (tank_map.get(tid) or {}).get("interval_days")))["next_refill_date"]]
+    revenue = sum(r["total_price"] or 0 for r in done)
+    liters = sum(r["volume_l"] or 0 for r in done)
+    return {"refills_count": len(done), "revenue": round(revenue, 2), "liters": round(liters, 1),
+            "avg_price_per_liter": round(revenue / liters, 2) if liters else None,
+            "unpaid_sum": round(sum(r["total_price"] or 0 for r in done if not r["paid"]), 2),
+            "first_date": min((r["done_date"] for r in done), default=None),
+            "last_done_date": max((r["done_date"] for r in done), default=None),
+            "next_refill_date": min(nexts, default=None)}
+
+
+@api.get("/clients/overview")
+def clients_overview():
+    """Список клиентов со сводкой: для главного экрана CRM."""
+    with db() as con:
+        clients = rows(con, "SELECT c.*, rf.name AS referrer_name FROM clients c "
+                            "LEFT JOIN referrers rf ON rf.id=c.referrer_id ORDER BY c.id DESC")
+        tanks = rows(con, "SELECT * FROM tanks")
+        done = rows(con, "SELECT * FROM refills WHERE status='done'")
+        opened = {r["client_id"]: r["n"] for r in rows(
+            con, "SELECT client_id, COUNT(*) n FROM refills WHERE status IN ('new','scheduled') GROUP BY client_id")}
+    for c in clients:
+        c_tanks = [t for t in tanks if t["client_id"] == c["id"]]
+        c.update(client_stats([r for r in done if r["client_id"] == c["id"]], c_tanks))
+        c["tanks_count"] = len(c_tanks)
+        c["open_requests"] = opened.get(c["id"], 0)
+    return clients
+
+
+@api.get("/clients/{id}/card")
+def client_card(id: int):
+    """Всё по клиенту: контакты, газгольдеры со сводкой, история, итоги."""
+    with db() as con:
+        client = dict(con.execute("SELECT c.*, rf.name AS referrer_name FROM clients c "
+                                  "LEFT JOIN referrers rf ON rf.id=c.referrer_id WHERE c.id=?", (id,)).fetchone() or {})
+        if not client:
+            raise HTTPException(404, "client not found")
+        tanks = rows(con, "SELECT * FROM tanks WHERE client_id=? ORDER BY id", (id,))
+        history = rows(con, REFILL_VIEW + " WHERE r.client_id=? ORDER BY COALESCE(r.done_date, r.scheduled_date, "
+                                          "substr(r.created_at,1,10)) DESC, r.id DESC", (id,))
+    done = [r for r in history if r["status"] == "done"]
+    for t in tanks:
+        t["summary"] = tank_summary([r for r in done if r["tank_id"] == t["id"]], t["interval_days"])
+    return {"client": client, "tanks": tanks, "refills": history, "stats": client_stats(done, tanks),
+            "open_requests": sum(1 for r in history if r["status"] in ("new", "scheduled"))}
+
+
+@api.get("/referrers/overview")
+def referrers_overview():
+    with db() as con:
+        return rows(con, """SELECT rf.*, (SELECT COUNT(*) FROM clients c WHERE c.referrer_id=rf.id) AS clients_count,
+            COUNT(r.id) AS refills_count, ROUND(COALESCE(SUM(r.total_price),0),2) AS revenue,
+            ROUND(COALESCE(SUM(r.referrer_reward),0),2) AS rewards
+            FROM referrers rf LEFT JOIN refills r ON r.referrer_id=rf.id AND r.status='done'
+            GROUP BY rf.id ORDER BY revenue DESC""")
 
 
 for _t in ("referrers", "clients", "tanks"):

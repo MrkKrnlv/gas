@@ -2,154 +2,323 @@
 <html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Газгольдер CRM</title>
 <style>
-:root{--bg:#f6f7f9;--c:#fff;--t:#1c1f24;--m:#6b7280;--b:#e3e6ea;--a:#2563eb;--ok:#16a34a;--w:#d97706;--r:#dc2626}
-@media(prefers-color-scheme:dark){:root{--bg:#0f1115;--c:#181b21;--t:#e7e9ee;--m:#8b93a1;--b:#2a2f38;--a:#4f8cff}}
-*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--t);font:14px/1.4 system-ui,sans-serif}
-header{display:flex;gap:6px;flex-wrap:wrap;padding:10px 16px;background:var(--c);border-bottom:1px solid var(--b);position:sticky;top:0;z-index:5}
-header b{margin-right:12px;align-self:center}
-.tab{padding:6px 12px;border:1px solid var(--b);border-radius:6px;background:none;color:var(--t);cursor:pointer}
-.tab.on{background:var(--a);border-color:var(--a);color:#fff}
-main{padding:16px;max-width:1400px;margin:auto}
-.bar{display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;align-items:center}
-input,select,textarea,button{font:inherit;color:var(--t);background:var(--c);border:1px solid var(--b);border-radius:6px;padding:6px 8px}
-button{cursor:pointer}button.p{background:var(--a);border-color:var(--a);color:#fff}button.d{color:var(--r)}
-.wrap{overflow:auto;background:var(--c);border:1px solid var(--b);border-radius:8px}
-table{border-collapse:collapse;width:100%}th,td{padding:8px 10px;text-align:left;border-bottom:1px solid var(--b);white-space:nowrap}
-th{color:var(--m);font-weight:500;font-size:12px;position:sticky;top:0;background:var(--c)}
-tr:hover td{background:var(--bg)}td.n{text-align:right;font-variant-numeric:tabular-nums}
-.badge{padding:2px 8px;border-radius:10px;font-size:12px;background:var(--b)}
-.s-new{background:#dbeafe;color:#1d4ed8}.s-scheduled{background:#fef3c7;color:#b45309}.s-done{background:#dcfce7;color:#15803d}.s-cancelled{background:#fee2e2;color:#b91c1c}
-.late{color:var(--r);font-weight:600}.soon{color:var(--w);font-weight:600}
-dialog{border:1px solid var(--b);border-radius:10px;background:var(--c);color:var(--t);width:min(560px,94vw);padding:18px}
-dialog::backdrop{background:#0008}
-.g{display:grid;grid-template-columns:1fr 1fr;gap:10px}.g label{display:flex;flex-direction:column;font-size:12px;color:var(--m);gap:3px}
-.g .f{grid-column:1/-1}.g input,.g select,.g textarea{width:100%}
-.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px;margin-bottom:14px}
-.card{background:var(--c);border:1px solid var(--b);border-radius:8px;padding:12px}.card small{color:var(--m)}.card div{font-size:22px;font-weight:600}
-h3{margin:18px 0 8px}
+:root{--bg:#f4f5f7;--card:#fff;--text:#14181f;--muted:#667085;--line:#e4e7ec;--accent:#3b5bdb;--accent-s:#e7ecff;
+--ok:#12805c;--ok-s:#e3f6ee;--warn:#b54708;--warn-s:#fef0c7;--bad:#b42318;--bad-s:#fee4e2;--info:#1d4ed8;--info-s:#e0eaff;
+--shadow:0 1px 2px rgba(16,24,40,.06),0 1px 3px rgba(16,24,40,.08);--r:14px}
+@media(prefers-color-scheme:dark){:root{--bg:#0d0f13;--card:#161a21;--text:#e8eaee;--muted:#8b94a3;--line:#262c36;--accent:#7c9bff;--accent-s:#1d2540;
+--ok:#4ade80;--ok-s:#12301f;--warn:#fbbf24;--warn-s:#3a2c0b;--bad:#f87171;--bad-s:#3b1717;--info:#8cb0ff;--info-s:#1b2745;--shadow:none}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font:14px/1.45 -apple-system,"Segoe UI",Roboto,system-ui,sans-serif}
+a{color:var(--accent);text-decoration:none}a:hover{text-decoration:underline}
+button,input,select,textarea{font:inherit;color:var(--text)}
+input,select,textarea{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:8px 11px;outline:none;width:100%}
+input:focus,select:focus,textarea:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-s)}
+.btn{display:inline-flex;align-items:center;gap:6px;padding:8px 14px;border-radius:10px;border:1px solid var(--line);background:var(--card);cursor:pointer;font-weight:500;white-space:nowrap}
+.btn:hover{border-color:var(--accent)}.btn.p{background:var(--accent);border-color:var(--accent);color:#fff}.btn.p:hover{filter:brightness(1.08)}
+.btn.d{color:var(--bad)}.btn.sm{padding:5px 10px;font-size:13px}
+/* шапка */
+.top{position:sticky;top:0;z-index:10;background:color-mix(in srgb,var(--card) 88%,transparent);backdrop-filter:blur(8px);border-bottom:1px solid var(--line)}
+.top .in{max-width:1180px;margin:auto;padding:10px 20px;display:flex;align-items:center;gap:18px;flex-wrap:wrap}
+.brand{font-weight:700;font-size:16px;display:flex;align-items:center;gap:8px}.brand i{width:26px;height:26px;border-radius:8px;background:var(--accent);display:grid;place-items:center;color:#fff;font-style:normal;font-size:14px}
+nav{display:flex;gap:4px;flex-wrap:wrap}nav a{padding:7px 13px;border-radius:9px;color:var(--muted);font-weight:500}nav a:hover{background:var(--bg);text-decoration:none}nav a.on{background:var(--accent-s);color:var(--accent)}
+.grow{flex:1}.top .links a{color:var(--muted);margin-left:12px;font-size:13px}
+main{max-width:1180px;margin:auto;padding:22px 20px 60px}
+h1{font-size:22px;margin:0}h2{font-size:15px;margin:26px 0 12px;display:flex;align-items:center;gap:10px}h2 .grow{flex:1}
+.bar{display:flex;gap:10px;align-items:center;margin-bottom:16px;flex-wrap:wrap}.bar input[type=search]{max-width:280px}.bar select{width:auto}
+.muted{color:var(--muted)}.sub{font-size:12px;color:var(--muted)}
+/* карточки */
+.card{background:var(--card);border:1px solid var(--line);border-radius:var(--r);box-shadow:var(--shadow)}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:14px}
+.cc{padding:16px;cursor:pointer;transition:.12s;display:flex;flex-direction:column;gap:12px}.cc:hover{border-color:var(--accent);transform:translateY(-1px)}
+.row{display:flex;align-items:center;gap:12px}.row .grow{min-width:0}
+.ava{width:42px;height:42px;border-radius:12px;display:grid;place-items:center;font-weight:700;color:#fff;flex:none;font-size:15px}
+.ava.lg{width:68px;height:68px;border-radius:18px;font-size:24px}
+.nm{font-weight:600;font-size:15px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.kv{display:flex;gap:18px;flex-wrap:wrap}.kv div{font-size:12px;color:var(--muted)}.kv b{display:block;font-size:14px;color:var(--text);font-weight:600}
+.chip{display:inline-flex;align-items:center;gap:4px;padding:3px 9px;border-radius:99px;font-size:12px;font-weight:500;background:var(--bg);color:var(--muted);white-space:nowrap}
+.chip.ok{background:var(--ok-s);color:var(--ok)}.chip.warn{background:var(--warn-s);color:var(--warn)}.chip.bad{background:var(--bad-s);color:var(--bad)}.chip.info{background:var(--info-s);color:var(--info)}.chip.acc{background:var(--accent-s);color:var(--accent)}
+/* карточка клиента */
+.hero{padding:22px;display:flex;gap:20px;align-items:flex-start;flex-wrap:wrap}
+.hero .main{flex:1;min-width:260px}.hero h1{margin-bottom:6px}
+.contacts{display:flex;flex-wrap:wrap;gap:6px 18px;margin-top:8px}.contacts span{color:var(--muted)}.contacts b{color:var(--text);font-weight:500}
+.acts{display:flex;gap:8px;flex-wrap:wrap}
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-top:14px}
+.kpi{padding:14px 16px}.kpi small{color:var(--muted);font-size:12px}.kpi div{font-size:21px;font-weight:700;margin-top:2px}.kpi .sub{margin-top:2px}
+.tank{padding:16px;display:flex;flex-direction:column;gap:12px}
+.tank h3{margin:0;font-size:15px}.tank .specs{display:flex;gap:6px;flex-wrap:wrap}
+.tank .meta{display:grid;grid-template-columns:1fr 1fr;gap:10px;font-size:13px}.tank .meta small{display:block;color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.03em}
+.empty{padding:28px;text-align:center;color:var(--muted)}
+/* таблицы */
+.wrap{overflow:auto}table{border-collapse:collapse;width:100%}
+th{color:var(--muted);font-weight:500;font-size:12px;text-align:left;padding:10px 14px;border-bottom:1px solid var(--line);white-space:nowrap}
+td{padding:11px 14px;border-bottom:1px solid var(--line);white-space:nowrap}tr:last-child td{border-bottom:0}
+tbody tr[data-id]{cursor:pointer}tbody tr[data-id]:hover td{background:var(--bg)}td.n,th.n{text-align:right;font-variant-numeric:tabular-nums}
+.pills{display:flex;gap:6px;flex-wrap:wrap}.pill{padding:6px 12px;border-radius:99px;border:1px solid var(--line);background:var(--card);cursor:pointer;font-size:13px}.pill.on{background:var(--accent);border-color:var(--accent);color:#fff}
+.bars .b{display:flex;align-items:center;gap:10px;margin:7px 0}.bars .b span:first-child{width:70px;color:var(--muted)}.bars .b i{display:block;height:20px;border-radius:6px;background:var(--accent);min-width:2px}
+/* диалог */
+dialog{border:0;border-radius:18px;background:var(--card);color:var(--text);width:min(620px,94vw);padding:0;box-shadow:0 20px 60px rgba(0,0,0,.35)}
+dialog::backdrop{background:rgba(10,12,18,.55)}
+.dh{padding:18px 22px;border-bottom:1px solid var(--line);font-weight:600;font-size:16px}.db{padding:18px 22px;max-height:70vh;overflow:auto}.df{padding:14px 22px;border-top:1px solid var(--line);display:flex;justify-content:space-between;gap:8px}
+.g{display:grid;grid-template-columns:1fr 1fr;gap:12px}.g label{display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--muted)}.g .f{grid-column:1/-1}
+.g label.ck{flex-direction:row;align-items:center;gap:8px;font-size:14px;color:var(--text);padding-top:20px}.g label.ck input{width:auto}
+.sect{grid-column:1/-1;font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);margin-top:6px;border-top:1px solid var(--line);padding-top:12px}
+#toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:var(--bad);color:#fff;padding:10px 18px;border-radius:10px;display:none;z-index:99;max-width:90vw;white-space:pre-line}
+@media(max-width:640px){.g{grid-template-columns:1fr}main{padding:16px 12px 50px}}
 </style></head><body>
-<header><b>Газгольдер CRM</b><span id="tabs"></span>
-<span style="flex:1"></span><a href="/docs" target="_blank" style="align-self:center;color:var(--m)">API</a>
-<a href="/api/export/refills.csv" id="csv" style="align-self:center;color:var(--m);margin-left:10px">CSV</a></header>
+<div class="top"><div class="in">
+  <div class="brand"><i>G</i>Газгольдер CRM</div>
+  <nav id="nav"></nav><span class="grow"></span>
+  <span class="links"><a href="/docs" target="_blank">API</a><a href="#" id="csv">Экспорт CSV</a></span>
+</div></div>
 <main id="main"></main>
 <dialog id="dlg"><form method="dialog" id="form"></form></dialog>
+<div id="toast"></div>
 <script>
-const $=s=>document.querySelector(s);
+const $=(s,r=document)=>r.querySelector(s),$$=(s,r=document)=>[...r.querySelectorAll(s)];
 let KEY=localStorage.getItem('key')||'';
+const E=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+function toast(m){const t=$('#toast');t.textContent=m;t.style.display='block';clearTimeout(toast.t);toast.t=setTimeout(()=>t.style.display='none',5000)}
 async function api(path,opt={}){
   const r=await fetch('/api'+path,{...opt,headers:{'Content-Type':'application/json','X-API-Key':KEY}});
   if(r.status===401){KEY=prompt('API ключ')||'';localStorage.setItem('key',KEY);return api(path,opt)}
-  if(!r.ok){alert((await r.json().catch(()=>({}))).detail||r.statusText);throw 0}
+  if(!r.ok){const j=await r.json().catch(()=>({}));let m=j.detail;
+    if(Array.isArray(m))m=m.map(e=>((e.loc||[]).slice(1).join('.')||'')+': '+(e.msg||'').replace('Value error, ','')).join('\n');
+    toast(m||r.statusText);throw new Error(m)}
   return r.status===204?null:r.json();
 }
-const ST={new:'новая',scheduled:'запланирована',done:'выполнена',cancelled:'отмена'};
-const rub=v=>v==null?'':Math.round(v).toLocaleString('ru')+' ₽';
-const E=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
-let cache={};
-async function refs(){const [c,t,r]=await Promise.all([api('/clients'),api('/tanks'),api('/referrers')]);cache={clients:c,tanks:t,referrers:r}}
+const body=o=>JSON.stringify(o);
+const ST={new:'Новая',scheduled:'Запланирована',done:'Выполнена',cancelled:'Отменена'};
+const STC={new:'info',scheduled:'warn',done:'ok',cancelled:'bad'};
+const PAY={cash:'Наличные',transfer:'Перевод',card:'Карта',invoice:'Счёт'};
+const rub=v=>v==null?'—':Math.round(v).toLocaleString('ru')+' ₽';
+const num=v=>v==null?'—':(+v).toLocaleString('ru');
+const fd=d=>d?d.split('-').reverse().join('.'):'—';
+const today=()=>{const d=new Date();return new Date(d-d.getTimezoneOffset()*6e4).toISOString().slice(0,10)};
+const daysTo=d=>d?Math.round((new Date(d)-new Date(today()))/864e5):null;
+function dueChip(d,label=''){if(!d)return '<span class="chip">нет данных</span>';const n=daysTo(d);
+  const t=n<0?`просрочено ${-n} дн`:n===0?'сегодня':`через ${n} дн`;
+  return `<span class="chip ${n<0?'bad':n<=7?'warn':n<=30?'info':''}" title="${fd(d)}">${label}${t}</span>`}
+const initials=n=>(n||'?').trim().split(/\s+/).slice(0,2).map(x=>x[0]).join('').toUpperCase();
+const hue=n=>{let h=0;for(const c of n||'')h=(h*31+c.charCodeAt(0))%360;return h};
+const ava=(n,lg)=>`<div class="ava ${lg?'lg':''}" style="background:hsl(${hue(n)} 55% 45%)">${E(initials(n))}</div>`;
+const tel=p=>p?`<a href="tel:${E(p.replace(/[^+\d]/g,''))}">${E(p)}</a>`:'';
+const tg=t=>t?`<a target="_blank" href="https://t.me/${E(t.replace(/^@/,''))}">${E(t.startsWith('@')?t:'@'+t)}</a>`:'';
 const opts=(list,label,sel,empty)=>(empty?'<option value="">—</option>':'')+list.map(x=>`<option value="${x.id}" ${x.id==sel?'selected':''}>${E(label(x))}</option>`).join('');
 
-// ---- конфиг сущностей ----
-const ENT={
- clients:{title:'Клиенты',cols:[['name','Имя'],['phone','Телефон'],['address','Адрес'],['ref','Привёл',r=>(cache.referrers.find(x=>x.id==r.referrer_id)||{}).name],['note','Заметка']],
-  form:(v)=>[['name','Имя','text'],['phone','Телефон','text'],['address','Адрес','text','f'],['referrer_id','Кто привёл','select',()=>opts(cache.referrers,x=>x.name,v.referrer_id,1)],['note','Заметка','textarea','f']]},
- tanks:{title:'Газгольдеры',cols:[['title','Название'],['client','Клиент',r=>(cache.clients.find(x=>x.id==r.client_id)||{}).name],['volume_l','Объём, л'],['brand','Марка'],['serial','Серийный №'],['address','Адрес'],['interval_days','Заправка раз в, дн']],
-  form:(v)=>[['client_id','Клиент','select',()=>opts(cache.clients,x=>x.name+' '+(x.phone||''),v.client_id)],['title','Название','text'],['volume_l','Объём, л','number'],['brand','Марка','text'],['serial','Серийный №','text'],['interval_days','Обычно заправка раз в, дн','number'],['address','Адрес','text','f'],['note','Заметка','textarea','f']]},
- referrers:{title:'Кто приводит',cols:[['name','Имя'],['phone','Телефон'],['reward_default','Вознаграждение по умолч.'],['note','Заметка']],
-  form:(v)=>[['name','Имя','text'],['phone','Телефон','text'],['reward_default','Вознаграждение за заявку, ₽','number'],['note','Заметка','textarea','f']]},
-};
-let tab='refills';
-const TABS=[['refills','Заявки'],['due','Напоминания'],['clients','Клиенты'],['tanks','Газгольдеры'],['referrers','Привёдшие'],['stats','Статистика']];
-$('#tabs').innerHTML=TABS.map(([k,n])=>`<button class="tab" data-k="${k}">${n}</button>`).join('');
-$('#tabs').onclick=e=>{if(e.target.dataset.k){tab=e.target.dataset.k;render()}};
-$('#csv').onclick=async e=>{e.preventDefault();const r=await fetch('/api/export/refills.csv',{headers:{'X-API-Key':KEY}});const a=document.createElement('a');a.href=URL.createObjectURL(await r.blob());a.download='refills.csv';a.click()};
-
-function dialog(title,fields,vals,onSave,onDel){
+/* ---------- универсальная форма ---------- */
+function openForm({title,fields,values={},onSave,onDelete}){
   const f=$('#form');
-  f.innerHTML=`<h3 style="margin-top:0">${title}</h3><div class="g">`+fields.map(([k,l,t,cls,extra])=>{
-    const v=vals[k]??'';
-    const inp=t==='select'?`<select name="${k}">${typeof cls==='function'?cls():extra()}</select>`
-      :t==='textarea'?`<textarea name="${k}" rows="2">${E(v)}</textarea>`
-      :t==='check'?`<input type="checkbox" name="${k}" ${vals[k]?'checked':''}>`
-      :`<input name="${k}" type="${t}" step="any" value="${E(v)}">`;
-    return `<label class="${cls==='f'?'f':''}">${l}${inp}</label>`}).join('')+`</div>
-   <div class="bar" style="margin:14px 0 0;justify-content:space-between"><span>${onDel?'<button type="button" class="d" id="del">Удалить</button>':''}</span>
-   <span><button type="button" id="cancel">Отмена</button> <button class="p" id="ok">Сохранить</button></span></div>`;
-  $('#dlg').showModal();$('#cancel').onclick=()=>$('#dlg').close();
-  if(onDel)$('#del').onclick=async()=>{if(confirm('Удалить?')){await onDel();$('#dlg').close();render()}};
+  const inp=x=>{const v=values[x.k]??'';
+    if(x.sect)return `<div class="sect">${x.sect}</div>`;
+    let el;
+    if(x.t==='select')el=`<select name="${x.k}">${x.html}</select>`;
+    else if(x.t==='textarea')el=`<textarea name="${x.k}" rows="2">${E(v)}</textarea>`;
+    else if(x.t==='check')return `<label class="ck"><input type="checkbox" name="${x.k}" ${values[x.k]?'checked':''}>${x.l}</label>`;
+    else if(x.t==='date')el=`<input type="date" name="${x.k}" value="${E(v)}" min="2000-01-01" max="2100-12-31">`;
+    else el=`<input name="${x.k}" type="${x.t||'text'}" step="any" value="${E(v)}" placeholder="${E(x.ph||'')}" ${x.list?`list="${x.list}"`:''}>`;
+    return `<label class="${x.full?'f':''}">${x.l}${el}</label>`};
+  f.innerHTML=`<div class="dh">${title}</div><div class="db"><div class="g">${fields.map(inp).join('')}</div></div>
+   <div class="df"><span>${onDelete?'<button type="button" class="btn d" id="fdel">Удалить</button>':''}</span>
+   <span style="display:flex;gap:8px"><button type="button" class="btn" id="fcancel">Отмена</button><button class="btn p">Сохранить</button></span></div>`;
+  $('#dlg').showModal();$('#fcancel').onclick=()=>$('#dlg').close();
+  if(onDelete)$('#fdel').onclick=async()=>{if(confirm('Удалить безвозвратно?')){try{await onDelete();$('#dlg').close();route()}catch{}}};
   f.onsubmit=async e=>{e.preventDefault();const o={};
-    for(const [k,,t] of fields){const el=f.elements[k];
-      o[k]=t==='check'?el.checked:el.value===''?null:(t==='number'||k.endsWith('_id'))?Number(el.value):el.value}
-    await onSave(o);$('#dlg').close();render()};
+    for(const x of fields){if(x.sect)continue;const el=f.elements[x.k];
+      o[x.k]=x.t==='check'?el.checked:el.value===''?null:(x.t==='number'||x.k.endsWith('_id'))?Number(el.value):el.value}
+    try{await onSave(o);$('#dlg').close();route()}catch{}};
   return f;
 }
 
-// ---- заявки ----
-function refillForm(v={}){
-  const fields=[
-   ['client_id','Клиент','select',()=>opts(cache.clients,x=>x.name+' '+(x.phone||''),v.client_id)],
-   ['tank_id','Газгольдер','select',()=>opts(cache.tanks.filter(t=>!v.client_id||t.client_id==v.client_id),x=>(x.title||'#'+x.id)+' '+(x.volume_l||'')+'л',v.tank_id,1)],
-   ['status','Статус','select',()=>Object.entries(ST).map(([k,n])=>`<option value="${k}" ${k==(v.status||'new')?'selected':''}>${n}</option>`).join('')],
-   ['referrer_id','Кто привёл','select',()=>opts(cache.referrers,x=>x.name,v.referrer_id,1)],
-   ['scheduled_date','Дата заявки/план','date'],['done_date','Дата заправки','date'],
-   ['volume_l','Литров','number'],['price_per_liter','Цена за литр, ₽','number'],
-   ['total_price','Итого, ₽ (авто)','number'],['cost_per_liter','Себестоимость за литр','number'],
-   ['referrer_reward','Вознаграждение привёдшему','number'],['interval_days','След. заправка через, дн','number'],
-   ['next_refill_date','След. заправка (авто)','date'],['paid','Оплачено','check'],['note','Заметка','textarea','f']];
-  const f=dialog(v.id?'Заявка #'+v.id:'Новая заявка',fields,v,
-    o=>v.id?api('/refills/'+v.id,{method:'PATCH',body:JSON.stringify(o)}):api('/refills',{method:'POST',body:JSON.stringify(o)}),
-    v.id&&(()=>api('/refills/'+v.id,{method:'DELETE'})));
-  f.elements.client_id.onchange=()=>{const cid=+f.elements.client_id.value;const c=cache.clients.find(x=>x.id==cid)||{};
-    f.elements.tank_id.innerHTML=opts(cache.tanks.filter(t=>t.client_id==cid),x=>(x.title||'#'+x.id)+' '+(x.volume_l||'')+'л',null,1);
-    if(!v.id&&c.referrer_id)f.elements.referrer_id.value=c.referrer_id};
+/* ---------- формы сущностей ---------- */
+async function clientForm(v={}){
+  const refs=await api('/referrers');
+  openForm({title:v.id?'Клиент':'Новый клиент',values:v,
+   fields:[{k:'name',l:'Имя *',full:1},{k:'phone',l:'Телефон',t:'tel'},{k:'phone2',l:'Доп. телефон',t:'tel'},
+    {k:'telegram',l:'Telegram',ph:'@username'},{k:'source',l:'Откуда пришёл',list:'srcs',ph:'рекомендация, реклама…'},
+    {k:'address',l:'Адрес',full:1},{k:'referrer_id',l:'Кто привёл',t:'select',full:1,html:opts(refs,x=>x.name,v.referrer_id,1)},
+    {k:'note',l:'Заметка',t:'textarea',full:1}],
+   onSave:async o=>{if(!o.name)throw toast('Укажи имя');const r=v.id?await api('/clients/'+v.id,{method:'PATCH',body:body(o)}):await api('/clients',{method:'POST',body:body(o)});
+     if(!v.id)location.hash='#/client/'+r.id},
+   onDelete:v.id&&(async()=>{try{await api('/clients/'+v.id,{method:'DELETE'});location.hash='#/clients'}catch(e){toast('Сначала удали газгольдеры и заявки клиента');throw e}})});
 }
+function tankForm(v){
+  openForm({title:v.id?'Газгольдер':'Новый газгольдер',values:v,
+   fields:[{k:'title',l:'Название',ph:'например «Основной»',full:1},{k:'volume_l',l:'Объём, л',t:'number'},{k:'brand',l:'Марка / производитель'},
+    {k:'serial',l:'Серийный номер'},{k:'interval_days',l:'Заправка раз в, дней',t:'number'},
+    {k:'installed_at',l:'Дата установки',t:'date'},{k:'inspection_date',l:'Следующее ТО / освидетельствование',t:'date'},
+    {k:'address',l:'Где стоит (если не адрес клиента)',full:1},{k:'note',l:'Заметка',t:'textarea',full:1}],
+   onSave:o=>{o.client_id=v.client_id;return v.id?api('/tanks/'+v.id,{method:'PATCH',body:body(o)}):api('/tanks',{method:'POST',body:body(o)})},
+   onDelete:v.id&&(async()=>{try{await api('/tanks/'+v.id,{method:'DELETE'})}catch(e){toast('К газгольдеру привязаны заявки, удали или перепривяжи их');throw e}})});
+}
+function referrerForm(v={}){
+  openForm({title:v.id?'Кто приводит':'Новый привёдший',values:v,
+   fields:[{k:'name',l:'Имя *',full:1},{k:'phone',l:'Телефон',t:'tel'},{k:'reward_default',l:'Вознаграждение за заявку, ₽',t:'number'},{k:'note',l:'Заметка',t:'textarea',full:1}],
+   onSave:o=>{if(!o.name){toast('Укажи имя');throw 0}return v.id?api('/referrers/'+v.id,{method:'PATCH',body:body(o)}):api('/referrers',{method:'POST',body:body(o)})},
+   onDelete:v.id&&(async()=>{try{await api('/referrers/'+v.id,{method:'DELETE'})}catch(e){toast('Есть клиенты или заявки с этим привёдшим');throw e}})});
+}
+async function refillForm(v={}){
+  const [clients,tanks,refs]=await Promise.all([api('/clients'),api('/tanks'),api('/referrers')]);
+  const isNew=!v.id;v={status:'new',...v};
+  if(isNew&&v.client_id&&!v.referrer_id)v.referrer_id=(clients.find(x=>x.id==v.client_id)||{}).referrer_id;
+  const tankOpts=cid=>opts(tanks.filter(t=>t.client_id==cid),t=>(t.title||'Газгольдер #'+t.id)+(t.volume_l?' · '+t.volume_l+' л':''),v.tank_id,1);
+  const f=openForm({title:isNew?'Новая заявка':'Заявка №'+v.id,values:v,
+   fields:[{k:'client_id',l:'Клиент *',t:'select',full:1,html:opts(clients,x=>x.name+(x.phone?' · '+x.phone:''),v.client_id)},
+    {k:'tank_id',l:'Газгольдер',t:'select',html:tankOpts(v.client_id)},
+    {k:'status',l:'Статус',t:'select',html:Object.entries(ST).map(([k,n])=>`<option value="${k}" ${k==v.status?'selected':''}>${n}</option>`).join('')},
+    {k:'scheduled_date',l:'Дата заявки / план',t:'date'},{k:'done_date',l:'Дата заправки',t:'date'},
+    {sect:'Деньги'},
+    {k:'volume_l',l:'Литров',t:'number'},{k:'price_per_liter',l:'Цена за литр, ₽',t:'number'},
+    {k:'total_price',l:'Итого, ₽',t:'number',ph:'считается само'},{k:'cost_per_liter',l:'Себестоимость за литр, ₽',t:'number'},
+    {k:'payment_method',l:'Способ оплаты',t:'select',html:'<option value="">—</option>'+Object.entries(PAY).map(([k,n])=>`<option value="${k}" ${k==v.payment_method?'selected':''}>${n}</option>`).join('')},
+    {k:'paid',l:'Оплачено',t:'check'},
+    {sect:'Привёл и следующая заправка'},
+    {k:'referrer_id',l:'Кто привёл',t:'select',html:opts(refs,x=>x.name,v.referrer_id,1)},{k:'referrer_reward',l:'Вознаграждение, ₽',t:'number',ph:'по умолчанию у привёдшего'},
+    {k:'interval_days',l:'След. заправка через, дн',t:'number',ph:'из газгольдера'},{k:'next_refill_date',l:'След. заправка (дата)',t:'date'},
+    {k:'note',l:'Заметка',t:'textarea',full:1}],
+   onSave:o=>{if(!o.client_id){toast('Выбери клиента');throw 0}return isNew?api('/refills',{method:'POST',body:body(o)}):api('/refills/'+v.id,{method:'PATCH',body:body(o)})},
+   onDelete:!isNew&&(()=>api('/refills/'+v.id,{method:'DELETE'}))});
+  const el=n=>f.elements[n];
+  const calc=()=>{const a=+el('volume_l').value,b=+el('price_per_liter').value;el('total_price').placeholder=a&&b?String(Math.round(a*b*100)/100):'считается само'};
+  el('volume_l').oninput=el('price_per_liter').oninput=calc;calc();
+  el('status').onchange=()=>{if(el('status').value==='done'&&!el('done_date').value)el('done_date').value=today()};
+  el('client_id').onchange=async()=>{const cid=+el('client_id').value,c=clients.find(x=>x.id==cid)||{};
+    const mine=tanks.filter(t=>t.client_id==cid);
+    el('tank_id').innerHTML='<option value="">—</option>'+mine.map(t=>`<option value="${t.id}">${E((t.title||'Газгольдер #'+t.id)+(t.volume_l?' · '+t.volume_l+' л':''))}</option>`).join('');
+    if(mine.length===1)el('tank_id').value=mine[0].id;
+    if(isNew){if(c.referrer_id)el('referrer_id').value=c.referrer_id;
+      if(!el('price_per_liter').value){const last=await api(`/refills?client_id=${cid}&status=done&limit=1`);if(last[0]&&last[0].price_per_liter){el('price_per_liter').value=last[0].price_per_liter;calc()}}}};
+  if(isNew&&v.client_id&&!v.tank_id){const mine=tanks.filter(t=>t.client_id==v.client_id);if(mine.length===1)el('tank_id').value=mine[0].id}
+}
+
+/* ---------- экраны ---------- */
+const NAV=[['clients','Клиенты'],['refills','Заявки'],['due','Напоминания'],['referrers','Привёдшие'],['stats','Статистика']];
+$('#nav').innerHTML=NAV.map(([k,n])=>`<a href="#/${k}" data-k="${k}">${n}</a>`).join('');
+$('#csv').onclick=async e=>{e.preventDefault();const r=await fetch('/api/export/refills.csv',{headers:{'X-API-Key':KEY}});const a=document.createElement('a');a.href=URL.createObjectURL(await r.blob());a.download='refills.csv';a.click()};
+const M=h=>$('#main').innerHTML=h;
+
+let clientsSort='due',clientsQ='';
+async function viewClients(){
+  const list=await api('/clients/overview');
+  const draw=()=>{
+    const q=clientsQ.toLowerCase();
+    let d=list.filter(c=>!q||[c.name,c.phone,c.phone2,c.address,c.telegram].some(x=>(x||'').toLowerCase().includes(q)));
+    const by={due:(a,b)=>(a.next_refill_date||'9999').localeCompare(b.next_refill_date||'9999'),new:(a,b)=>b.id-a.id,revenue:(a,b)=>b.revenue-a.revenue,name:(a,b)=>a.name.localeCompare(b.name)};
+    d.sort(by[clientsSort]);
+    $('#cl').innerHTML=d.map(c=>`<div class="card cc" data-id="${c.id}">
+      <div class="row">${ava(c.name)}<div class="grow"><div class="nm">${E(c.name)}</div><div class="sub">${E(c.phone||'без телефона')}${c.address?' · '+E(c.address):''}</div></div>
+        ${c.open_requests?`<span class="chip info">${c.open_requests} в работе</span>`:''}</div>
+      <div>${c.refills_count?dueChip(c.next_refill_date,'Заправка: '):'<span class="chip">заправок ещё не было</span>'}</div>
+      <div class="kv"><div>Газгольдеров<b>${c.tanks_count}</b></div><div>Заправок<b>${c.refills_count}</b></div><div>Выручка<b>${rub(c.revenue)}</b></div><div>Последняя<b>${fd(c.last_done_date)}</b></div></div>
+      ${c.referrer_name?`<div class="sub">Привёл: <b style="color:var(--text)">${E(c.referrer_name)}</b></div>`:''}</div>`).join('')||'<div class="card empty" style="grid-column:1/-1">Клиентов не найдено</div>';
+    $$('.cc').forEach(x=>x.onclick=()=>location.hash='#/client/'+x.dataset.id)};
+  M(`<div class="bar"><h1 class="grow">Клиенты <span class="muted" style="font-weight:400;font-size:15px">${list.length}</span></h1>
+    <input type="search" id="q" placeholder="Поиск: имя, телефон, адрес" value="${E(clientsQ)}">
+    <select id="sort"><option value="due">Сначала кому пора заправляться</option><option value="new">Новые сверху</option><option value="revenue">По выручке</option><option value="name">По имени</option></select>
+    <button class="btn p" id="new">+ Клиент</button></div><div class="grid" id="cl"></div>
+    <datalist id="srcs"><option>Рекомендация</option><option>Яндекс Директ</option><option>Сайт</option><option>Повторное обращение</option></datalist>`);
+  $('#sort').value=clientsSort;$('#sort').onchange=e=>{clientsSort=e.target.value;draw()};
+  $('#q').oninput=e=>{clientsQ=e.target.value;draw()};$('#new').onclick=()=>clientForm();draw();
+}
+
+async function viewClient(id){
+  const d=await api(`/clients/${id}/card`).catch(()=>null);if(!d){location.hash='#/clients';return}
+  const c=d.client,s=d.stats;
+  const kpi=(l,v,sub='')=>`<div class="card kpi"><small>${l}</small><div>${v}</div>${sub?`<div class="sub" style="font-size:12px;font-weight:400">${sub}</div>`:''}</div>`;
+  M(`<p style="margin:0 0 14px"><a href="#/clients">← Все клиенты</a></p>
+  <div class="card hero">${ava(c.name,1)}<div class="main"><h1>${E(c.name)}</h1>
+    <div class="pills">${c.referrer_name?`<span class="chip acc">Привёл: ${E(c.referrer_name)}</span>`:''}${c.source?`<span class="chip">${E(c.source)}</span>`:''}<span class="chip">Клиент с ${fd(c.created_at.slice(0,10))}</span></div>
+    <div class="contacts">${c.phone?`<span>Тел: <b>${tel(c.phone)}</b></span>`:''}${c.phone2?`<span>Доп: <b>${tel(c.phone2)}</b></span>`:''}${c.telegram?`<span>Telegram: <b>${tg(c.telegram)}</b></span>`:''}${c.address?`<span>Адрес: <b>${E(c.address)}</b></span>`:''}</div>
+    ${c.note?`<div style="margin-top:12px;padding:10px 12px;border-radius:10px;background:var(--bg);white-space:pre-wrap">${E(c.note)}</div>`:''}</div>
+    <div class="acts"><button class="btn p" id="addr">+ Заправка</button><button class="btn" id="edit">Редактировать</button></div></div>
+  <div class="kpis">${kpi('Следующая заправка',s.next_refill_date?fd(s.next_refill_date):'—',s.next_refill_date?dueChip(s.next_refill_date):'')}
+    ${kpi('Заправок',s.refills_count,s.first_date?'с '+fd(s.first_date):'')}${kpi('Выручка',rub(s.revenue))}
+    ${kpi('Литров',num(s.liters),s.avg_price_per_liter?'ср. '+num(s.avg_price_per_liter)+' ₽/л':'')}
+    ${kpi('Не оплачено',s.unpaid_sum?`<span style="color:var(--bad)">${rub(s.unpaid_sum)}</span>`:'—')}
+    ${kpi('В работе',d.open_requests,'заявок')}</div>
+  <h2>Газгольдеры <span class="grow"></span><button class="btn sm" id="addt">+ Газгольдер</button></h2>
+  <div class="grid">${d.tanks.map(t=>{const ts=t.summary,ins=daysTo(t.inspection_date);return `<div class="card tank">
+    <div class="row"><div class="grow"><h3>${E(t.title||'Газгольдер #'+t.id)}</h3><div class="specs" style="margin-top:6px">
+      ${t.volume_l?`<span class="chip acc">${num(t.volume_l)} л</span>`:''}${t.brand?`<span class="chip">${E(t.brand)}</span>`:''}${t.serial?`<span class="chip">№ ${E(t.serial)}</span>`:''}</div></div>
+      <button class="btn sm" data-edit-tank="${t.id}">Изменить</button></div>
+    <div>${ts.refills_count?dueChip(ts.next_refill_date,'Заправка: '):'<span class="chip">заправок не было</span>'}</div>
+    <div class="meta"><div><small>Последняя заправка</small>${fd(ts.last_done_date)}</div><div><small>Заправок / литров</small>${ts.refills_count} / ${num(ts.liters)}</div>
+      <div><small>Интервал</small>${t.interval_days?'раз в '+t.interval_days+' дн':'—'}${ts.avg_interval_days?` <span class="sub">(факт. ${ts.avg_interval_days})</span>`:''}</div>
+      <div><small>Следующее ТО</small>${t.inspection_date?fd(t.inspection_date)+' '+(ins<0?'<span class="chip bad">просрочено</span>':ins<=60?`<span class="chip warn">через ${ins} дн</span>`:''):'—'}</div>
+      ${t.installed_at?`<div><small>Установлен</small>${fd(t.installed_at)}</div>`:''}${t.address?`<div><small>Где стоит</small>${E(t.address)}</div>`:''}</div>
+    ${t.note?`<div class="sub">${E(t.note)}</div>`:''}
+    <button class="btn sm" data-refill-tank="${t.id}">+ Заправка этого газгольдера</button></div>`}).join('')||
+    '<div class="card empty" style="grid-column:1/-1">Газгольдеров нет. Добавь первый.</div>'}</div>
+  <h2>История заправок</h2>
+  <div class="card wrap"><table><thead><tr><th>Дата</th><th>Газгольдер</th><th>Статус</th><th class="n">Литры</th><th class="n">₽/л</th><th class="n">Итого</th><th>Оплата</th><th>След. заправка</th></tr></thead><tbody>
+  ${d.refills.map(r=>`<tr data-id="${r.id}"><td>${fd(r.done_date||r.scheduled_date||r.created_at.slice(0,10))}</td><td>${E(r.tank_title||(r.tank_volume_l?r.tank_volume_l+' л':'—'))}</td>
+   <td><span class="chip ${STC[r.status]}">${ST[r.status]}</span></td><td class="n">${num(r.volume_l)}</td><td class="n">${num(r.price_per_liter)}</td><td class="n">${rub(r.total_price)}</td>
+   <td>${r.status==='done'?(r.paid?`<span class="chip ok">оплачено${r.payment_method?' · '+PAY[r.payment_method]:''}</span>`:'<span class="chip bad">не оплачено</span>'):''}</td>
+   <td>${r.status==='done'?dueChip(r.next_refill_date):''}</td></tr>`).join('')||'<tr><td colspan="8" class="empty">Заявок пока нет</td></tr>'}</tbody></table></div>
+  <datalist id="srcs"><option>Рекомендация</option><option>Яндекс Директ</option><option>Сайт</option><option>Повторное обращение</option></datalist>`);
+  $('#edit').onclick=()=>clientForm(c);$('#addr').onclick=()=>refillForm({client_id:c.id});
+  $('#addt').onclick=()=>tankForm({client_id:c.id});
+  $$('[data-edit-tank]').forEach(b=>b.onclick=()=>tankForm(d.tanks.find(t=>t.id==b.dataset.editTank)));
+  $$('[data-refill-tank]').forEach(b=>b.onclick=()=>refillForm({client_id:c.id,tank_id:+b.dataset.refillTank}));
+  $$('tr[data-id]').forEach(tr=>tr.onclick=()=>refillForm(d.refills.find(r=>r.id==tr.dataset.id)));
+}
+
+let refStatus='';
 async function viewRefills(){
-  const q=$('#q')?$('#q').value:'',st=$('#st')?$('#st').value:'';
-  const d=await api('/refills?'+new URLSearchParams({...(q&&{q}),...(st&&{status:st})}));
-  $('#main').innerHTML=`<div class="bar"><button class="p" id="new">+ Заявка</button><input id="q" placeholder="Поиск: имя, телефон" value="${E(q)}">
-   <select id="st"><option value="">все статусы</option>${Object.entries(ST).map(([k,n])=>`<option value="${k}" ${k==st?'selected':''}>${n}</option>`).join('')}</select></div>
-   <div class="wrap"><table><tr><th>#</th><th>Дата</th><th>Клиент</th><th>Телефон</th><th>Газгольдер</th><th>Статус</th><th>Литры</th><th>₽/л</th><th>Итого</th><th>Привёл</th><th>Вознагр.</th><th>След. заправка</th><th>Оплата</th></tr>
-   ${d.map(r=>`<tr data-id="${r.id}" style="cursor:pointer"><td>${r.id}</td><td>${r.done_date||r.scheduled_date||r.created_at.slice(0,10)}</td><td>${E(r.client_name)}</td><td>${E(r.client_phone)}</td>
-   <td>${E(r.tank_title||'')} ${r.tank_volume_l?r.tank_volume_l+'л':''}</td><td><span class="badge s-${r.status}">${ST[r.status]}</span></td>
-   <td class="n">${r.volume_l??''}</td><td class="n">${r.price_per_liter??''}</td><td class="n">${rub(r.total_price)}</td><td>${E(r.referrer_name||'')}</td><td class="n">${r.referrer_reward?rub(r.referrer_reward):''}</td>
-   <td>${dueCell(r.next_refill_date)}</td><td>${r.status==='done'?(r.paid?'✓':'<span class="late">нет</span>'):''}</td></tr>`).join('')}</table></div>`;
-  $('#new').onclick=()=>refillForm();$('#q').onchange=viewRefills;$('#st').onchange=viewRefills;
-  document.querySelectorAll('tr[data-id]').forEach(tr=>tr.onclick=()=>refillForm(d.find(x=>x.id==tr.dataset.id)));
+  const q=($('#rq')||{}).value||'';
+  const d=await api('/refills?'+new URLSearchParams({...(q&&{q}),...(refStatus&&{status:refStatus})}));
+  const sum=d.filter(r=>r.status==='done').reduce((a,r)=>a+(r.total_price||0),0);
+  M(`<div class="bar"><h1 class="grow">Заявки</h1><input type="search" id="rq" placeholder="Поиск: клиент, телефон" value="${E(q)}"><button class="btn p" id="new">+ Заявка</button></div>
+  <div class="pills" style="margin-bottom:14px">${[['','Все'],...Object.entries(ST)].map(([k,n])=>`<span class="pill ${k===refStatus?'on':''}" data-s="${k}">${n}</span>`).join('')}</div>
+  <div class="card wrap"><table><thead><tr><th>№</th><th>Дата</th><th>Клиент</th><th>Газгольдер</th><th>Статус</th><th class="n">Литры</th><th class="n">₽/л</th><th class="n">Итого</th><th>Привёл</th><th>Оплата</th><th>След. заправка</th></tr></thead><tbody>
+  ${d.map(r=>`<tr data-id="${r.id}"><td class="muted">${r.id}</td><td>${fd(r.done_date||r.scheduled_date||r.created_at.slice(0,10))}</td>
+   <td><a href="#/client/${r.client_id}" onclick="event.stopPropagation()"><b>${E(r.client_name)}</b></a><div class="sub">${E(r.client_phone||'')}</div></td>
+   <td>${E(r.tank_title||'')} ${r.tank_volume_l?`<span class="sub">${r.tank_volume_l} л</span>`:''}</td><td><span class="chip ${STC[r.status]}">${ST[r.status]}</span></td>
+   <td class="n">${num(r.volume_l)}</td><td class="n">${num(r.price_per_liter)}</td><td class="n"><b>${rub(r.total_price)}</b></td><td>${E(r.referrer_name||'')}</td>
+   <td>${r.status==='done'?(r.paid?'<span class="chip ok">да</span>':'<span class="chip bad">нет</span>'):''}</td><td>${r.status==='done'?dueChip(r.next_refill_date):''}</td></tr>`).join('')||'<tr><td colspan="11" class="empty">Ничего нет</td></tr>'}</tbody></table></div>
+  <p class="sub" style="margin-top:10px">Показано: ${d.length} · выручка по выполненным: ${rub(sum)}</p>`);
+  $('#new').onclick=()=>refillForm();$('#rq').onchange=viewRefills;
+  $$('.pill').forEach(p=>p.onclick=()=>{refStatus=p.dataset.s;viewRefills()});
+  $$('tr[data-id]').forEach(tr=>tr.onclick=()=>refillForm(d.find(x=>x.id==tr.dataset.id)));
 }
-function dueCell(d){if(!d)return '';const n=Math.round((new Date(d)-new Date(new Date().toISOString().slice(0,10)))/864e5);
-  return `<span class="${n<0?'late':n<=14?'soon':''}">${d} (${n<0?'просрочено '+(-n)+' дн':'через '+n+' дн'})</span>`}
 
 async function viewDue(){
   const d=await api('/due?days=30');
-  $('#main').innerHTML=`<p style="color:var(--m)">Кому пора заправляться (ближайшие 30 дней + просроченные). Для автоматизации: <code>GET /api/due?days=7</code></p>
-  <div class="wrap"><table><tr><th>Клиент</th><th>Телефон</th><th>Газгольдер</th><th>Последняя заправка</th><th>Пора</th><th>Привёл</th><th>Был ₽/л</th></tr>
-  ${d.map(r=>`<tr><td>${E(r.client_name)}</td><td>${E(r.client_phone)}</td><td>${E(r.tank_title||'')}</td><td>${r.last_done_date||''}</td><td>${dueCell(r.next_refill_date)}</td><td>${E(r.referrer_name||'')}</td><td class="n">${r.last_price_per_liter??''}</td></tr>`).join('')||'<tr><td colspan=7>Никого</td></tr>'}</table></div>`;
+  M(`<div class="bar"><h1 class="grow">Напоминания</h1><span class="sub">Кому пора заправляться в ближайшие 30 дней и просроченные. Для автоматики: <code>GET /api/due?days=7</code></span></div>
+  <div class="card wrap"><table><thead><tr><th>Клиент</th><th>Телефон</th><th>Газгольдер</th><th>Последняя заправка</th><th>Пора</th><th>Привёл</th><th class="n">Был ₽/л</th></tr></thead><tbody>
+  ${d.map(r=>`<tr data-c="${r.client_id}"><td><b>${E(r.client_name)}</b></td><td>${tel(r.client_phone)}</td><td>${E(r.tank_title||'')}</td><td>${fd(r.last_done_date)}</td>
+   <td>${dueChip(r.next_refill_date)} <span class="sub">${fd(r.next_refill_date)}</span></td><td>${E(r.referrer_name||'')}</td><td class="n">${num(r.last_price_per_liter)}</td></tr>`).join('')||'<tr><td colspan="7" class="empty">Никому пока не пора</td></tr>'}</tbody></table></div>`);
+  $$('tr[data-c]').forEach(tr=>tr.onclick=e=>{if(e.target.tagName!=='A')location.hash='#/client/'+tr.dataset.c});
+  $$('tr[data-c]').forEach(tr=>tr.style.cursor='pointer');
 }
 
-function viewEnt(k){
-  const e=ENT[k],list=cache[k];
-  $('#main').innerHTML=`<div class="bar"><button class="p" id="new">+ Добавить</button></div><div class="wrap"><table><tr>${e.cols.map(c=>`<th>${c[1]}</th>`).join('')}</tr>
-  ${list.map(r=>`<tr data-id="${r.id}" style="cursor:pointer">${e.cols.map(c=>`<td>${E(typeof c[2]==='function'?c[2](r):r[c[0]])}</td>`).join('')}</tr>`).join('')}</table></div>`;
-  const open=(v={})=>dialog(v.id?e.title:'Новая запись',e.form(v),v,
-    o=>api('/'+k+(v.id?'/'+v.id:''),{method:v.id?'PATCH':'POST',body:JSON.stringify(o)}),v.id&&(()=>api('/'+k+'/'+v.id,{method:'DELETE'})));
-  $('#new').onclick=()=>open();
-  document.querySelectorAll('tr[data-id]').forEach(tr=>tr.onclick=()=>open(list.find(x=>x.id==tr.dataset.id)));
+async function viewReferrers(){
+  const d=await api('/referrers/overview');
+  M(`<div class="bar"><h1 class="grow">Кто приводит</h1><button class="btn p" id="new">+ Привёдший</button></div>
+  <div class="card wrap"><table><thead><tr><th>Имя</th><th>Телефон</th><th class="n">Клиентов</th><th class="n">Заправок</th><th class="n">Выручка</th><th class="n">Вознаграждения</th><th class="n">По умолч.</th></tr></thead><tbody>
+  ${d.map(r=>`<tr data-id="${r.id}"><td><b>${E(r.name)}</b></td><td>${E(r.phone||'')}</td><td class="n">${r.clients_count}</td><td class="n">${r.refills_count}</td><td class="n">${rub(r.revenue)}</td><td class="n">${rub(r.rewards)}</td><td class="n">${rub(r.reward_default)}</td></tr>`).join('')||'<tr><td colspan="7" class="empty">Пока никого</td></tr>'}</tbody></table></div>`);
+  $('#new').onclick=()=>referrerForm();$$('tr[data-id]').forEach(tr=>tr.onclick=()=>referrerForm(d.find(x=>x.id==tr.dataset.id)));
 }
 
 async function viewStats(){
-  const s=await api('/stats');const t=s.total;
-  const card=(l,v)=>`<div class="card"><small>${l}</small><div>${v}</div></div>`;
-  $('#main').innerHTML=`<div class="cards">${card('Выполнено заправок',t.refills)}${card('Выручка',rub(t.revenue))}${card('Прибыль*',rub(t.profit))}${card('Литров',t.liters||0)}
-   ${card('Вознагр. привёдшим',rub(t.referrer_rewards))}${card('Не оплачено',rub(s.unpaid.sum)+' ('+s.unpaid.n+')')}${card('Открытых заявок',s.open_requests)}</div>
-   <small style="color:var(--m)">*выручка − себестоимость − вознаграждение (если указана себестоимость)</small>
-   <h3>По привёдшим</h3><div class="wrap"><table><tr><th>Кто</th><th>Заправок</th><th>Выручка</th><th>Вознагр.</th></tr>${s.by_referrer.map(r=>`<tr><td>${E(r.referrer)}</td><td class="n">${r.refills}</td><td class="n">${rub(r.revenue)}</td><td class="n">${rub(r.rewards)}</td></tr>`).join('')}</table></div>
-   <h3>По месяцам</h3><div class="wrap"><table><tr><th>Месяц</th><th>Заправок</th><th>Выручка</th></tr>${s.by_month.map(r=>`<tr><td>${r.month}</td><td class="n">${r.refills}</td><td class="n">${rub(r.revenue)}</td></tr>`).join('')}</table></div>`;
+  const s=await api('/stats'),t=s.total,mx=Math.max(1,...s.by_month.map(m=>m.revenue||0));
+  const kpi=(l,v)=>`<div class="card kpi"><small>${l}</small><div>${v}</div></div>`;
+  M(`<div class="bar"><h1 class="grow">Статистика</h1></div>
+  <div class="kpis" style="margin-top:0">${kpi('Выполнено заправок',t.refills)}${kpi('Выручка',rub(t.revenue))}${kpi('Прибыль*',rub(t.profit))}${kpi('Литров',num(t.liters||0))}
+   ${kpi('Вознаграждения',rub(t.referrer_rewards))}${kpi('Не оплачено',rub(s.unpaid.sum)+' <span class="sub">('+s.unpaid.n+')</span>')}${kpi('Заявок в работе',s.open_requests)}</div>
+  <p class="sub">*выручка − себестоимость − вознаграждение (если указана себестоимость)</p>
+  <h2>Выручка по месяцам</h2><div class="card" style="padding:14px 18px"><div class="bars">${s.by_month.map(m=>`<div class="b"><span>${m.month}</span><i style="width:${Math.max(1,(m.revenue||0)/mx*70)}%"></i><b>${rub(m.revenue)}</b><span class="sub">${m.refills} зап.</span></div>`).join('')||'<div class="empty">Нет данных</div>'}</div></div>
+  <h2>По привёдшим</h2><div class="card wrap"><table><thead><tr><th>Кто</th><th class="n">Заправок</th><th class="n">Выручка</th><th class="n">Вознаграждения</th></tr></thead><tbody>
+  ${s.by_referrer.map(r=>`<tr><td>${E(r.referrer)}</td><td class="n">${r.refills}</td><td class="n">${rub(r.revenue)}</td><td class="n">${rub(r.rewards)}</td></tr>`).join('')}</tbody></table></div>`);
 }
 
-async function render(){
-  document.querySelectorAll('.tab').forEach(b=>b.classList.toggle('on',b.dataset.k===tab));
-  await refs();
-  ({refills:viewRefills,due:viewDue,stats:viewStats}[tab]||(()=>viewEnt(tab)))();
+/* ---------- роутер ---------- */
+async function route(){
+  const [, page='clients', arg] = (location.hash||'#/clients').split('/');
+  $$('#nav a').forEach(a=>a.classList.toggle('on',a.dataset.k===page||(page==='client'&&a.dataset.k==='clients')));
+  try{
+    if(page==='client')await viewClient(arg);else
+    await ({clients:viewClients,refills:viewRefills,due:viewDue,referrers:viewReferrers,stats:viewStats}[page]||viewClients)();
+  }catch(e){console.error(e)}
 }
-render();
+addEventListener('hashchange',route);route();
 </script></body></html>
