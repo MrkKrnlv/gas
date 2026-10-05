@@ -1,0 +1,32 @@
+# Газгольдер CRM
+
+FastAPI + SQLite, веб-интерфейс на `/`, Swagger на `/docs`.
+
+## Запуск
+    pip install -r requirements.txt
+    uvicorn main:app --host 0.0.0.0 --port 8000
+
+Переменные окружения (см. `.env.example`): `API_KEY` (заголовок `X-API-Key` или `?api_key=`), `WEBHOOK_URL`, `DB_PATH`.
+
+## Сущности
+- `referrers` — кто приводит (вознаграждение по умолчанию)
+- `clients` — клиент, телефон, адрес, кто привёл
+- `tanks` — газгольдеры клиента (объём, марка, серийник, обычный интервал заправки в днях)
+- `refills` — заявки/заправки: статус (`new|scheduled|done|cancelled`), даты, литры, цена за литр, итого, себестоимость, вознаграждение, оплата, `next_refill_date`
+
+Автоматика в заявке: привёдший берётся из клиента, интервал из газгольдера, `total_price = литры * цена`, `next_refill_date = done_date + interval_days`, при `done` без даты ставится сегодня.
+
+## API (всё под `/api`)
+| метод | путь |
+|---|---|
+| GET/POST | `/refills`, `/clients`, `/tanks`, `/referrers` |
+| GET/PATCH/DELETE | `/<сущность>/{id}` |
+| GET | `/refills?status=&client_id=&referrer_id=&date_from=&date_to=&q=` |
+| GET | `/due?days=7` — кому пора заправляться (с просроченными) |
+| GET | `/stats` — выручка, прибыль, по привёдшим, по месяцам, неоплаченные |
+| GET | `/export/refills.csv` |
+
+## Интеграции
+- Webhook: при `WEBHOOK_URL` на каждое событие шлётся POST `{"event": "refill.created|refill.updated|refill.done", "data": {...заявка...}}` (подходит для n8n).
+- Напоминания: n8n по крону раз в день дёргает `/api/due?days=3` и шлёт сообщения клиентам.
+- Создание заявки из формы/бота: `POST /api/refills`.

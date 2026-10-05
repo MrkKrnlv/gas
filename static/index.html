@@ -1,0 +1,155 @@
+<!doctype html>
+<html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Газгольдер CRM</title>
+<style>
+:root{--bg:#f6f7f9;--c:#fff;--t:#1c1f24;--m:#6b7280;--b:#e3e6ea;--a:#2563eb;--ok:#16a34a;--w:#d97706;--r:#dc2626}
+@media(prefers-color-scheme:dark){:root{--bg:#0f1115;--c:#181b21;--t:#e7e9ee;--m:#8b93a1;--b:#2a2f38;--a:#4f8cff}}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--t);font:14px/1.4 system-ui,sans-serif}
+header{display:flex;gap:6px;flex-wrap:wrap;padding:10px 16px;background:var(--c);border-bottom:1px solid var(--b);position:sticky;top:0;z-index:5}
+header b{margin-right:12px;align-self:center}
+.tab{padding:6px 12px;border:1px solid var(--b);border-radius:6px;background:none;color:var(--t);cursor:pointer}
+.tab.on{background:var(--a);border-color:var(--a);color:#fff}
+main{padding:16px;max-width:1400px;margin:auto}
+.bar{display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;align-items:center}
+input,select,textarea,button{font:inherit;color:var(--t);background:var(--c);border:1px solid var(--b);border-radius:6px;padding:6px 8px}
+button{cursor:pointer}button.p{background:var(--a);border-color:var(--a);color:#fff}button.d{color:var(--r)}
+.wrap{overflow:auto;background:var(--c);border:1px solid var(--b);border-radius:8px}
+table{border-collapse:collapse;width:100%}th,td{padding:8px 10px;text-align:left;border-bottom:1px solid var(--b);white-space:nowrap}
+th{color:var(--m);font-weight:500;font-size:12px;position:sticky;top:0;background:var(--c)}
+tr:hover td{background:var(--bg)}td.n{text-align:right;font-variant-numeric:tabular-nums}
+.badge{padding:2px 8px;border-radius:10px;font-size:12px;background:var(--b)}
+.s-new{background:#dbeafe;color:#1d4ed8}.s-scheduled{background:#fef3c7;color:#b45309}.s-done{background:#dcfce7;color:#15803d}.s-cancelled{background:#fee2e2;color:#b91c1c}
+.late{color:var(--r);font-weight:600}.soon{color:var(--w);font-weight:600}
+dialog{border:1px solid var(--b);border-radius:10px;background:var(--c);color:var(--t);width:min(560px,94vw);padding:18px}
+dialog::backdrop{background:#0008}
+.g{display:grid;grid-template-columns:1fr 1fr;gap:10px}.g label{display:flex;flex-direction:column;font-size:12px;color:var(--m);gap:3px}
+.g .f{grid-column:1/-1}.g input,.g select,.g textarea{width:100%}
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px;margin-bottom:14px}
+.card{background:var(--c);border:1px solid var(--b);border-radius:8px;padding:12px}.card small{color:var(--m)}.card div{font-size:22px;font-weight:600}
+h3{margin:18px 0 8px}
+</style></head><body>
+<header><b>Газгольдер CRM</b><span id="tabs"></span>
+<span style="flex:1"></span><a href="/docs" target="_blank" style="align-self:center;color:var(--m)">API</a>
+<a href="/api/export/refills.csv" id="csv" style="align-self:center;color:var(--m);margin-left:10px">CSV</a></header>
+<main id="main"></main>
+<dialog id="dlg"><form method="dialog" id="form"></form></dialog>
+<script>
+const $=s=>document.querySelector(s);
+let KEY=localStorage.getItem('key')||'';
+async function api(path,opt={}){
+  const r=await fetch('/api'+path,{...opt,headers:{'Content-Type':'application/json','X-API-Key':KEY}});
+  if(r.status===401){KEY=prompt('API ключ')||'';localStorage.setItem('key',KEY);return api(path,opt)}
+  if(!r.ok){alert((await r.json().catch(()=>({}))).detail||r.statusText);throw 0}
+  return r.status===204?null:r.json();
+}
+const ST={new:'новая',scheduled:'запланирована',done:'выполнена',cancelled:'отмена'};
+const rub=v=>v==null?'':Math.round(v).toLocaleString('ru')+' ₽';
+const E=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+let cache={};
+async function refs(){const [c,t,r]=await Promise.all([api('/clients'),api('/tanks'),api('/referrers')]);cache={clients:c,tanks:t,referrers:r}}
+const opts=(list,label,sel,empty)=>(empty?'<option value="">—</option>':'')+list.map(x=>`<option value="${x.id}" ${x.id==sel?'selected':''}>${E(label(x))}</option>`).join('');
+
+// ---- конфиг сущностей ----
+const ENT={
+ clients:{title:'Клиенты',cols:[['name','Имя'],['phone','Телефон'],['address','Адрес'],['ref','Привёл',r=>(cache.referrers.find(x=>x.id==r.referrer_id)||{}).name],['note','Заметка']],
+  form:(v)=>[['name','Имя','text'],['phone','Телефон','text'],['address','Адрес','text','f'],['referrer_id','Кто привёл','select',()=>opts(cache.referrers,x=>x.name,v.referrer_id,1)],['note','Заметка','textarea','f']]},
+ tanks:{title:'Газгольдеры',cols:[['title','Название'],['client','Клиент',r=>(cache.clients.find(x=>x.id==r.client_id)||{}).name],['volume_l','Объём, л'],['brand','Марка'],['serial','Серийный №'],['address','Адрес'],['interval_days','Заправка раз в, дн']],
+  form:(v)=>[['client_id','Клиент','select',()=>opts(cache.clients,x=>x.name+' '+(x.phone||''),v.client_id)],['title','Название','text'],['volume_l','Объём, л','number'],['brand','Марка','text'],['serial','Серийный №','text'],['interval_days','Обычно заправка раз в, дн','number'],['address','Адрес','text','f'],['note','Заметка','textarea','f']]},
+ referrers:{title:'Кто приводит',cols:[['name','Имя'],['phone','Телефон'],['reward_default','Вознаграждение по умолч.'],['note','Заметка']],
+  form:(v)=>[['name','Имя','text'],['phone','Телефон','text'],['reward_default','Вознаграждение за заявку, ₽','number'],['note','Заметка','textarea','f']]},
+};
+let tab='refills';
+const TABS=[['refills','Заявки'],['due','Напоминания'],['clients','Клиенты'],['tanks','Газгольдеры'],['referrers','Привёдшие'],['stats','Статистика']];
+$('#tabs').innerHTML=TABS.map(([k,n])=>`<button class="tab" data-k="${k}">${n}</button>`).join('');
+$('#tabs').onclick=e=>{if(e.target.dataset.k){tab=e.target.dataset.k;render()}};
+$('#csv').onclick=async e=>{e.preventDefault();const r=await fetch('/api/export/refills.csv',{headers:{'X-API-Key':KEY}});const a=document.createElement('a');a.href=URL.createObjectURL(await r.blob());a.download='refills.csv';a.click()};
+
+function dialog(title,fields,vals,onSave,onDel){
+  const f=$('#form');
+  f.innerHTML=`<h3 style="margin-top:0">${title}</h3><div class="g">`+fields.map(([k,l,t,cls,extra])=>{
+    const v=vals[k]??'';
+    const inp=t==='select'?`<select name="${k}">${typeof cls==='function'?cls():extra()}</select>`
+      :t==='textarea'?`<textarea name="${k}" rows="2">${E(v)}</textarea>`
+      :t==='check'?`<input type="checkbox" name="${k}" ${vals[k]?'checked':''}>`
+      :`<input name="${k}" type="${t}" step="any" value="${E(v)}">`;
+    return `<label class="${cls==='f'?'f':''}">${l}${inp}</label>`}).join('')+`</div>
+   <div class="bar" style="margin:14px 0 0;justify-content:space-between"><span>${onDel?'<button type="button" class="d" id="del">Удалить</button>':''}</span>
+   <span><button type="button" id="cancel">Отмена</button> <button class="p" id="ok">Сохранить</button></span></div>`;
+  $('#dlg').showModal();$('#cancel').onclick=()=>$('#dlg').close();
+  if(onDel)$('#del').onclick=async()=>{if(confirm('Удалить?')){await onDel();$('#dlg').close();render()}};
+  f.onsubmit=async e=>{e.preventDefault();const o={};
+    for(const [k,,t] of fields){const el=f.elements[k];
+      o[k]=t==='check'?el.checked:el.value===''?null:(t==='number'||k.endsWith('_id'))?Number(el.value):el.value}
+    await onSave(o);$('#dlg').close();render()};
+  return f;
+}
+
+// ---- заявки ----
+function refillForm(v={}){
+  const fields=[
+   ['client_id','Клиент','select',()=>opts(cache.clients,x=>x.name+' '+(x.phone||''),v.client_id)],
+   ['tank_id','Газгольдер','select',()=>opts(cache.tanks.filter(t=>!v.client_id||t.client_id==v.client_id),x=>(x.title||'#'+x.id)+' '+(x.volume_l||'')+'л',v.tank_id,1)],
+   ['status','Статус','select',()=>Object.entries(ST).map(([k,n])=>`<option value="${k}" ${k==(v.status||'new')?'selected':''}>${n}</option>`).join('')],
+   ['referrer_id','Кто привёл','select',()=>opts(cache.referrers,x=>x.name,v.referrer_id,1)],
+   ['scheduled_date','Дата заявки/план','date'],['done_date','Дата заправки','date'],
+   ['volume_l','Литров','number'],['price_per_liter','Цена за литр, ₽','number'],
+   ['total_price','Итого, ₽ (авто)','number'],['cost_per_liter','Себестоимость за литр','number'],
+   ['referrer_reward','Вознаграждение привёдшему','number'],['interval_days','След. заправка через, дн','number'],
+   ['next_refill_date','След. заправка (авто)','date'],['paid','Оплачено','check'],['note','Заметка','textarea','f']];
+  const f=dialog(v.id?'Заявка #'+v.id:'Новая заявка',fields,v,
+    o=>v.id?api('/refills/'+v.id,{method:'PATCH',body:JSON.stringify(o)}):api('/refills',{method:'POST',body:JSON.stringify(o)}),
+    v.id&&(()=>api('/refills/'+v.id,{method:'DELETE'})));
+  f.elements.client_id.onchange=()=>{const cid=+f.elements.client_id.value;const c=cache.clients.find(x=>x.id==cid)||{};
+    f.elements.tank_id.innerHTML=opts(cache.tanks.filter(t=>t.client_id==cid),x=>(x.title||'#'+x.id)+' '+(x.volume_l||'')+'л',null,1);
+    if(!v.id&&c.referrer_id)f.elements.referrer_id.value=c.referrer_id};
+}
+async function viewRefills(){
+  const q=$('#q')?$('#q').value:'',st=$('#st')?$('#st').value:'';
+  const d=await api('/refills?'+new URLSearchParams({...(q&&{q}),...(st&&{status:st})}));
+  $('#main').innerHTML=`<div class="bar"><button class="p" id="new">+ Заявка</button><input id="q" placeholder="Поиск: имя, телефон" value="${E(q)}">
+   <select id="st"><option value="">все статусы</option>${Object.entries(ST).map(([k,n])=>`<option value="${k}" ${k==st?'selected':''}>${n}</option>`).join('')}</select></div>
+   <div class="wrap"><table><tr><th>#</th><th>Дата</th><th>Клиент</th><th>Телефон</th><th>Газгольдер</th><th>Статус</th><th>Литры</th><th>₽/л</th><th>Итого</th><th>Привёл</th><th>Вознагр.</th><th>След. заправка</th><th>Оплата</th></tr>
+   ${d.map(r=>`<tr data-id="${r.id}" style="cursor:pointer"><td>${r.id}</td><td>${r.done_date||r.scheduled_date||r.created_at.slice(0,10)}</td><td>${E(r.client_name)}</td><td>${E(r.client_phone)}</td>
+   <td>${E(r.tank_title||'')} ${r.tank_volume_l?r.tank_volume_l+'л':''}</td><td><span class="badge s-${r.status}">${ST[r.status]}</span></td>
+   <td class="n">${r.volume_l??''}</td><td class="n">${r.price_per_liter??''}</td><td class="n">${rub(r.total_price)}</td><td>${E(r.referrer_name||'')}</td><td class="n">${r.referrer_reward?rub(r.referrer_reward):''}</td>
+   <td>${dueCell(r.next_refill_date)}</td><td>${r.status==='done'?(r.paid?'✓':'<span class="late">нет</span>'):''}</td></tr>`).join('')}</table></div>`;
+  $('#new').onclick=()=>refillForm();$('#q').onchange=viewRefills;$('#st').onchange=viewRefills;
+  document.querySelectorAll('tr[data-id]').forEach(tr=>tr.onclick=()=>refillForm(d.find(x=>x.id==tr.dataset.id)));
+}
+function dueCell(d){if(!d)return '';const n=Math.round((new Date(d)-new Date(new Date().toISOString().slice(0,10)))/864e5);
+  return `<span class="${n<0?'late':n<=14?'soon':''}">${d} (${n<0?'просрочено '+(-n)+' дн':'через '+n+' дн'})</span>`}
+
+async function viewDue(){
+  const d=await api('/due?days=30');
+  $('#main').innerHTML=`<p style="color:var(--m)">Кому пора заправляться (ближайшие 30 дней + просроченные). Для автоматизации: <code>GET /api/due?days=7</code></p>
+  <div class="wrap"><table><tr><th>Клиент</th><th>Телефон</th><th>Газгольдер</th><th>Последняя заправка</th><th>Пора</th><th>Привёл</th><th>Был ₽/л</th></tr>
+  ${d.map(r=>`<tr><td>${E(r.client_name)}</td><td>${E(r.client_phone)}</td><td>${E(r.tank_title||'')}</td><td>${r.last_done_date||''}</td><td>${dueCell(r.next_refill_date)}</td><td>${E(r.referrer_name||'')}</td><td class="n">${r.last_price_per_liter??''}</td></tr>`).join('')||'<tr><td colspan=7>Никого</td></tr>'}</table></div>`;
+}
+
+function viewEnt(k){
+  const e=ENT[k],list=cache[k];
+  $('#main').innerHTML=`<div class="bar"><button class="p" id="new">+ Добавить</button></div><div class="wrap"><table><tr>${e.cols.map(c=>`<th>${c[1]}</th>`).join('')}</tr>
+  ${list.map(r=>`<tr data-id="${r.id}" style="cursor:pointer">${e.cols.map(c=>`<td>${E(typeof c[2]==='function'?c[2](r):r[c[0]])}</td>`).join('')}</tr>`).join('')}</table></div>`;
+  const open=(v={})=>dialog(v.id?e.title:'Новая запись',e.form(v),v,
+    o=>api('/'+k+(v.id?'/'+v.id:''),{method:v.id?'PATCH':'POST',body:JSON.stringify(o)}),v.id&&(()=>api('/'+k+'/'+v.id,{method:'DELETE'})));
+  $('#new').onclick=()=>open();
+  document.querySelectorAll('tr[data-id]').forEach(tr=>tr.onclick=()=>open(list.find(x=>x.id==tr.dataset.id)));
+}
+
+async function viewStats(){
+  const s=await api('/stats');const t=s.total;
+  const card=(l,v)=>`<div class="card"><small>${l}</small><div>${v}</div></div>`;
+  $('#main').innerHTML=`<div class="cards">${card('Выполнено заправок',t.refills)}${card('Выручка',rub(t.revenue))}${card('Прибыль*',rub(t.profit))}${card('Литров',t.liters||0)}
+   ${card('Вознагр. привёдшим',rub(t.referrer_rewards))}${card('Не оплачено',rub(s.unpaid.sum)+' ('+s.unpaid.n+')')}${card('Открытых заявок',s.open_requests)}</div>
+   <small style="color:var(--m)">*выручка − себестоимость − вознаграждение (если указана себестоимость)</small>
+   <h3>По привёдшим</h3><div class="wrap"><table><tr><th>Кто</th><th>Заправок</th><th>Выручка</th><th>Вознагр.</th></tr>${s.by_referrer.map(r=>`<tr><td>${E(r.referrer)}</td><td class="n">${r.refills}</td><td class="n">${rub(r.revenue)}</td><td class="n">${rub(r.rewards)}</td></tr>`).join('')}</table></div>
+   <h3>По месяцам</h3><div class="wrap"><table><tr><th>Месяц</th><th>Заправок</th><th>Выручка</th></tr>${s.by_month.map(r=>`<tr><td>${r.month}</td><td class="n">${r.refills}</td><td class="n">${rub(r.revenue)}</td></tr>`).join('')}</table></div>`;
+}
+
+async function render(){
+  document.querySelectorAll('.tab').forEach(b=>b.classList.toggle('on',b.dataset.k===tab));
+  await refs();
+  ({refills:viewRefills,due:viewDue,stats:viewStats}[tab]||(()=>viewEnt(tab)))();
+}
+render();
+</script></body></html>
