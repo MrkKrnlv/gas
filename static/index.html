@@ -1,12 +1,14 @@
 <!doctype html>
 <html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Газгольдер CRM</title>
+<script>try{var t=localStorage.getItem("theme");if(t)document.documentElement.dataset.theme=t}catch(e){}</script><title>Газгольдер CRM</title>
 <style>
 :root{--bg:#f4f5f7;--card:#fff;--text:#14181f;--muted:#667085;--line:#e4e7ec;--accent:#3b5bdb;--accent-s:#e7ecff;
 --ok:#12805c;--ok-s:#e3f6ee;--warn:#b54708;--warn-s:#fef0c7;--bad:#b42318;--bad-s:#fee4e2;--info:#1d4ed8;--info-s:#e0eaff;
 --shadow:0 1px 2px rgba(16,24,40,.06),0 1px 3px rgba(16,24,40,.08);--r:14px}
-@media(prefers-color-scheme:dark){:root{--bg:#0d0f13;--card:#161a21;--text:#e8eaee;--muted:#8b94a3;--line:#262c36;--accent:#7c9bff;--accent-s:#1d2540;
+@media(prefers-color-scheme:dark){:root:not([data-theme=light]){--bg:#0d0f13;--card:#161a21;--text:#e8eaee;--muted:#8b94a3;--line:#262c36;--accent:#7c9bff;--accent-s:#1d2540;
 --ok:#4ade80;--ok-s:#12301f;--warn:#fbbf24;--warn-s:#3a2c0b;--bad:#f87171;--bad-s:#3b1717;--info:#8cb0ff;--info-s:#1b2745;--shadow:none}}
+:root[data-theme=dark]{--bg:#0d0f13;--card:#161a21;--text:#e8eaee;--muted:#8b94a3;--line:#262c36;--accent:#7c9bff;--accent-s:#1d2540;
+--ok:#4ade80;--ok-s:#12301f;--warn:#fbbf24;--warn-s:#3a2c0b;--bad:#f87171;--bad-s:#3b1717;--info:#8cb0ff;--info-s:#1b2745;--shadow:none}
 *{box-sizing:border-box}
 body{margin:0;background:var(--bg);color:var(--text);font:14px/1.45 -apple-system,"Segoe UI",Roboto,system-ui,sans-serif}
 a{color:var(--accent);text-decoration:none}a:hover{text-decoration:underline}
@@ -68,7 +70,7 @@ dialog::backdrop{background:rgba(10,12,18,.55)}
 <div class="top"><div class="in">
   <div class="brand"><i>G</i>Газгольдер CRM</div>
   <nav id="nav"></nav><span class="grow"></span>
-  <span class="links"><a href="/docs" target="_blank">API</a><a href="#" id="csv">Экспорт CSV</a><span id="who"></span></span>
+  <button class="btn sm" id="theme" title="Тема" style="font-size:15px;padding:4px 10px"></button><span class="links"><a href="/docs" target="_blank">API</a><a href="#" id="csv">Экспорт CSV</a><span id="who"></span></span>
 </div></div>
 <main id="main"></main>
 <dialog id="dlg"><form method="dialog" id="form"></form></dialog>
@@ -100,6 +102,8 @@ const daysTo=d=>d?Math.round((new Date(d)-new Date(today()))/864e5):null;
 function dueChip(d,label=''){if(!d)return '<span class="chip">нет данных</span>';const n=daysTo(d);
   const t=n<0?`просрочено ${-n} дн`:n===0?'сегодня':`через ${n} дн`;
   return `<span class="chip ${n<0?'bad':n<=7?'warn':n<=30?'info':''}" title="${fd(d)}">${label}${t}</span>`}
+const latestIds=rows=>{const m={};rows.filter(r=>r.status==='done'&&r.done_date).forEach(r=>{const k=(r.client_id)+'/'+(r.tank_id||0);
+  if(!m[k]||(r.done_date+r.id)>(m[k].done_date+m[k].id))m[k]=r});return new Set(Object.values(m).map(r=>r.id))};
 const initials=n=>(n||'?').trim().split(/\s+/).slice(0,2).map(x=>x[0]).join('').toUpperCase();
 const hue=n=>{let h=0;for(const c of n||'')h=(h*31+c.charCodeAt(0))%360;return h};
 const ava=(n,lg)=>`<div class="ava ${lg?'lg':''}" style="background:hsl(${hue(n)} 55% 45%)">${E(initials(n))}</div>`;
@@ -224,7 +228,7 @@ async function viewClients(){
 
 async function viewClient(id){
   const d=await api(`/clients/${id}/card`).catch(()=>null);if(!d){location.hash='#/clients';return}
-  const c=d.client,s=d.stats;
+  const c=d.client,s=d.stats,last=latestIds(d.refills);
   const kpi=(l,v,sub='')=>`<div class="card kpi"><small>${l}</small><div>${v}</div>${sub?`<div class="sub" style="font-size:12px;font-weight:400">${sub}</div>`:''}</div>`;
   M(`<p style="margin:0 0 14px"><a href="#/clients">← Все клиенты</a></p>
   <div class="card hero">${ava(c.name,1)}<div class="main"><h1>${E(c.name)}</h1>
@@ -255,7 +259,7 @@ async function viewClient(id){
   ${d.refills.map(r=>`<tr data-id="${r.id}"><td>${fd(r.done_date||r.scheduled_date||r.created_at.slice(0,10))}</td><td>${E(r.tank_title||(r.tank_volume_l?r.tank_volume_l+' л':'—'))}</td>
    <td><span class="chip ${STC[r.status]}">${ST[r.status]}</span></td><td class="n">${num(r.volume_l)}</td><td class="n">${num(r.price_per_liter)}</td><td class="n">${rub(r.total_price)}</td>
    <td>${r.status==='done'?(r.paid?`<span class="chip ok">оплачено${r.payment_method?' · '+PAY[r.payment_method]:''}</span>`:'<span class="chip bad">не оплачено</span>'):''}</td>
-   <td>${r.status==='done'?dueChip(r.next_refill_date):''}</td></tr>`).join('')||'<tr><td colspan="8" class="empty">Заявок пока нет</td></tr>'}</tbody></table></div>
+   <td>${last.has(r.id)?dueChip(r.next_refill_date):''}</td></tr>`).join('')||'<tr><td colspan="8" class="empty">Заявок пока нет</td></tr>'}</tbody></table></div>
   <datalist id="srcs"><option>Рекомендация</option><option>Яндекс Директ</option><option>Сайт</option><option>Повторное обращение</option></datalist>`);
   $('#edit').onclick=()=>clientForm(c);$('#addr').onclick=()=>refillForm({client_id:c.id});
   $('#addt').onclick=()=>tankForm({client_id:c.id});
@@ -268,7 +272,7 @@ let refStatus='';
 async function viewRefills(){
   const q=($('#rq')||{}).value||'';
   const d=await api('/refills?'+new URLSearchParams({...(q&&{q}),...(refStatus&&{status:refStatus})}));
-  const sum=d.filter(r=>r.status==='done').reduce((a,r)=>a+(r.total_price||0),0);
+  const last=latestIds(d),sum=d.filter(r=>r.status==='done').reduce((a,r)=>a+(r.total_price||0),0);
   M(`<div class="bar"><h1 class="grow">Заявки</h1><input type="search" id="rq" placeholder="Поиск: клиент, телефон" value="${E(q)}"><button class="btn p" id="new">+ Заявка</button></div>
   <div class="pills" style="margin-bottom:14px">${[['','Все'],...Object.entries(ST)].map(([k,n])=>`<span class="pill ${k===refStatus?'on':''}" data-s="${k}">${n}</span>`).join('')}</div>
   <div class="card wrap"><table><thead><tr><th>№</th><th>Дата</th><th>Клиент</th><th>Газгольдер</th><th>Статус</th><th class="n">Литры</th><th class="n">₽/л</th><th class="n">Итого</th><th>Привёл</th><th>Оплата</th><th>След. заправка</th></tr></thead><tbody>
@@ -276,7 +280,7 @@ async function viewRefills(){
    <td><a href="#/client/${r.client_id}" onclick="event.stopPropagation()"><b>${E(r.client_name)}</b></a><div class="sub">${E(r.client_phone||'')}</div></td>
    <td>${E(r.tank_title||'')} ${r.tank_volume_l?`<span class="sub">${r.tank_volume_l} л</span>`:''}</td><td><span class="chip ${STC[r.status]}">${ST[r.status]}</span></td>
    <td class="n">${num(r.volume_l)}</td><td class="n">${num(r.price_per_liter)}</td><td class="n"><b>${rub(r.total_price)}</b></td><td>${E(r.referrer_name||'')}</td>
-   <td>${r.status==='done'?(r.paid?'<span class="chip ok">да</span>':'<span class="chip bad">нет</span>'):''}</td><td>${r.status==='done'?dueChip(r.next_refill_date):''}</td></tr>`).join('')||'<tr><td colspan="11" class="empty">Ничего нет</td></tr>'}</tbody></table></div>
+   <td>${r.status==='done'?(r.paid?'<span class="chip ok">да</span>':'<span class="chip bad">нет</span>'):''}</td><td>${last.has(r.id)?dueChip(r.next_refill_date):''}</td></tr>`).join('')||'<tr><td colspan="11" class="empty">Ничего нет</td></tr>'}</tbody></table></div>
   <p class="sub" style="margin-top:10px">Показано: ${d.length} · выручка по выполненным: ${rub(sum)}</p>`);
   $('#new').onclick=()=>refillForm();$('#rq').onchange=viewRefills;
   $$('.pill').forEach(p=>p.onclick=()=>{refStatus=p.dataset.s;viewRefills()});
@@ -322,6 +326,9 @@ async function route(){
     await ({clients:viewClients,refills:viewRefills,due:viewDue,referrers:viewReferrers,stats:viewStats}[page]||viewClients)();
   }catch(e){console.error(e)}
 }
+const isDark=()=>{const t=document.documentElement.dataset.theme;return t?t==='dark':matchMedia('(prefers-color-scheme:dark)').matches};
+const paintTheme=()=>$('#theme').textContent=isDark()?'☀':'☾';
+$('#theme').onclick=()=>{const t=isDark()?'light':'dark';document.documentElement.dataset.theme=t;try{localStorage.setItem('theme',t)}catch{}paintTheme()};paintTheme();
 addEventListener('hashchange',route);route();
 fetch('/auth/me').then(r=>r.json()).then(m=>{if(m.auth&&m.user){$('#who').innerHTML=` · ${E(m.user)} <a href="#" id="out">Выйти</a>`;
   $('#out').onclick=async e=>{e.preventDefault();await fetch('/auth/logout',{method:'POST'});location.href='/login'}}}).catch(()=>{});

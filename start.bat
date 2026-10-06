@@ -1,5 +1,6 @@
 @echo off
 cd /d "%~dp0"
+if not exist .env copy .env.example .env >nul
 set PY=py
 where py >nul 2>&1 || set PY=python
 %PY% --version >nul 2>&1

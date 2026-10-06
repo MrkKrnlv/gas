@@ -1,9 +1,10 @@
 <!doctype html>
 <html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Вход, Газгольдер CRM</title>
+<script>try{var t=localStorage.getItem("theme");if(t)document.documentElement.dataset.theme=t}catch(e){}</script><title>Вход, Газгольдер CRM</title>
 <style>
 :root{--bg:#f4f5f7;--card:#fff;--text:#14181f;--muted:#667085;--line:#e4e7ec;--accent:#3b5bdb;--bad:#b42318}
-@media(prefers-color-scheme:dark){:root{--bg:#0d0f13;--card:#161a21;--text:#e8eaee;--muted:#8b94a3;--line:#262c36;--accent:#7c9bff;--bad:#f87171}}
+@media(prefers-color-scheme:dark){:root:not([data-theme=light]){--bg:#0d0f13;--card:#161a21;--text:#e8eaee;--muted:#8b94a3;--line:#262c36;--accent:#7c9bff;--bad:#f87171}}
+:root[data-theme=dark]{--bg:#0d0f13;--card:#161a21;--text:#e8eaee;--muted:#8b94a3;--line:#262c36;--accent:#7c9bff;--bad:#f87171}
 *{box-sizing:border-box}body{margin:0;min-height:100vh;display:grid;place-items:center;background:var(--bg);color:var(--text);font:14px/1.45 -apple-system,"Segoe UI",Roboto,system-ui,sans-serif}
 form{width:min(360px,92vw);background:var(--card);border:1px solid var(--line);border-radius:16px;padding:28px;display:flex;flex-direction:column;gap:14px}
 .logo{width:38px;height:38px;border-radius:11px;background:var(--accent);color:#fff;display:grid;place-items:center;font-weight:700;font-size:18px}

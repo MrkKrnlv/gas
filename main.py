@@ -10,6 +10,20 @@ from fastapi.openapi.docs import get_swagger_ui_html
 from fastapi.responses import FileResponse, RedirectResponse, StreamingResponse
 from pydantic import BaseModel, field_validator
 
+def _load_env(path):
+    """Мини-парсер .env (без зависимостей): KEY=VALUE, # комментарии."""
+    try:
+        for line in open(path, encoding="utf-8-sig"):
+            line = line.strip()
+            if line and not line.startswith("#") and "=" in line:
+                k, v = line.split("=", 1)
+                os.environ.setdefault(k.strip(), v.strip().strip("\"'"))
+    except FileNotFoundError:
+        pass
+
+
+_load_env(os.path.join(os.path.dirname(os.path.abspath(__file__)), ".env"))
+
 DB_PATH = os.getenv("DB_PATH", "crm.db")
 API_KEY = os.getenv("API_KEY", "")
 WEBHOOK_URL = os.getenv("WEBHOOK_URL", "")
