@@ -1,6 +1,6 @@
 <!doctype html>
 <html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<script>try{var t=localStorage.getItem("theme");if(t)document.documentElement.dataset.theme=t}catch(e){}</script><title>Газгольдер CRM</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script><script>try{var t=localStorage.getItem("theme");if(t)document.documentElement.dataset.theme=t}catch(e){}</script><title>Газгольдер CRM</title>
 <style>
 :root{--bg:#f4f5f7;--card:#fff;--text:#14181f;--muted:#667085;--line:#e4e7ec;--accent:#3b5bdb;--accent-s:#e7ecff;
 --ok:#12805c;--ok-s:#e3f6ee;--warn:#b54708;--warn-s:#fef0c7;--bad:#b42318;--bad-s:#fee4e2;--info:#1d4ed8;--info-s:#e0eaff;
@@ -65,7 +65,11 @@ dialog::backdrop{background:rgba(10,12,18,.55)}
 .g label.ck{flex-direction:row;align-items:center;gap:8px;font-size:14px;color:var(--text);padding-top:20px}.g label.ck input{width:auto}
 .sect{grid-column:1/-1;font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);margin-top:6px;border-top:1px solid var(--line);padding-top:12px}
 #toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:var(--bad);color:#fff;padding:10px 18px;border-radius:10px;display:none;z-index:99;max-width:90vw;white-space:pre-line}
-@media(max-width:640px){.g{grid-template-columns:1fr}main{padding:16px 12px 50px}}
+@media(max-width:640px){.g{grid-template-columns:1fr}main{padding:14px 12px 50px}
+.top .in{padding:8px 12px;gap:8px 10px}.top .links{display:none}.top .grow{display:none}
+.brand{flex:1}nav{order:3;width:100%;flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none}nav a{white-space:nowrap;padding:6px 11px}
+.hero{padding:16px;gap:12px}.ava.lg{width:52px;height:52px;font-size:19px;border-radius:14px}h1{font-size:20px}
+.bar{gap:8px}.bar input[type=search],.bar select{max-width:none;flex:1 1 100%}.grid{grid-template-columns:1fr}}
 </style></head><body>
 <div class="top"><div class="in">
   <div class="brand"><i>G</i>Газгольдер CRM</div>
@@ -77,13 +81,15 @@ dialog::backdrop{background:rgba(10,12,18,.55)}
 <div id="toast"></div>
 <script>
 const $=(s,r=document)=>r.querySelector(s),$$=(s,r=document)=>[...r.querySelectorAll(s)];
-let KEY=localStorage.getItem('key')||'';
+let KEY=localStorage.getItem('key')||'',TOK=sessionStorage.getItem('tok')||'';
+const TG=window.Telegram&&Telegram.WebApp&&Telegram.WebApp.initData?Telegram.WebApp:null;
+const hdr=()=>({'X-API-Key':KEY,...(TOK&&{Authorization:'Bearer '+TOK})});
 const E=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 function toast(m){const t=$('#toast');t.textContent=m;t.style.display='block';clearTimeout(toast.t);toast.t=setTimeout(()=>t.style.display='none',5000)}
 async function api(path,opt={}){
-  const r=await fetch('/api'+path,{...opt,headers:{'Content-Type':'application/json','X-API-Key':KEY}});
+  const r=await fetch('/api'+path,{...opt,headers:{'Content-Type':'application/json',...hdr()}});
   if(r.status===401){const j=await r.clone().json().catch(()=>({}));
-    if(j.detail==='login required'){location.href='/login';throw new Error('login')}
+    if(j.detail==='login required'){if(TG){sessionStorage.removeItem('tok');location.reload()}else location.href='/login';throw new Error('login')}
     KEY=prompt('API ключ')||'';localStorage.setItem('key',KEY);return api(path,opt)}
   if(!r.ok){const j=await r.json().catch(()=>({}));let m=j.detail;
     if(Array.isArray(m))m=m.map(e=>((e.loc||[]).slice(1).join('.')||'')+': '+(e.msg||'').replace('Value error, ','')).join('\n');
@@ -199,7 +205,7 @@ async function refillForm(v={}){
 /* ---------- экраны ---------- */
 const NAV=[['clients','Клиенты'],['refills','Заявки'],['due','Напоминания'],['referrers','Привёдшие'],['stats','Статистика']];
 $('#nav').innerHTML=NAV.map(([k,n])=>`<a href="#/${k}" data-k="${k}">${n}</a>`).join('');
-$('#csv').onclick=async e=>{e.preventDefault();const r=await fetch('/api/export/refills.csv',{headers:{'X-API-Key':KEY}});const a=document.createElement('a');a.href=URL.createObjectURL(await r.blob());a.download='refills.csv';a.click()};
+$('#csv').onclick=async e=>{e.preventDefault();const r=await fetch('/api/export/refills.csv',{headers:hdr()});const a=document.createElement('a');a.href=URL.createObjectURL(await r.blob());a.download='refills.csv';a.click()};
 const M=h=>$('#main').innerHTML=h;
 
 let clientsSort='due',clientsQ='';
@@ -329,7 +335,22 @@ async function route(){
 const isDark=()=>{const t=document.documentElement.dataset.theme;return t?t==='dark':matchMedia('(prefers-color-scheme:dark)').matches};
 const paintTheme=()=>$('#theme').textContent=isDark()?'☀':'☾';
 $('#theme').onclick=()=>{const t=isDark()?'light':'dark';document.documentElement.dataset.theme=t;try{localStorage.setItem('theme',t)}catch{}paintTheme()};paintTheme();
-addEventListener('hashchange',route);route();
-fetch('/auth/me').then(r=>r.json()).then(m=>{if(m.auth&&m.user){$('#who').innerHTML=` · ${E(m.user)} <a href="#" id="out">Выйти</a>`;
-  $('#out').onclick=async e=>{e.preventDefault();await fetch('/auth/logout',{method:'POST'});location.href='/login'}}}).catch(()=>{});
+function blocked(msg){document.body.innerHTML=`<div style="min-height:100vh;display:grid;place-items:center;padding:24px;text-align:center;font:16px system-ui;color:var(--text)"><div><div style="font-size:42px">🔒</div><p>${E(msg)}</p></div></div>`}
+async function boot(){
+  let m=await fetch('/auth/me',{headers:hdr()}).then(r=>r.json()).catch(()=>({auth:false}));
+  if(m.auth&&!m.user){
+    if(TG&&m.telegram){
+      const r=await fetch('/auth/telegram',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({initData:TG.initData})});
+      const j=await r.json().catch(()=>({}));
+      if(!r.ok)return blocked(j.detail||'Нет доступа');
+      TOK=j.token;sessionStorage.setItem('tok',TOK);m.user=j.user;
+    }else if(m.password_login){location.href='/login';return}
+    else return blocked('Открой CRM из Telegram-бота');
+  }
+  if(TG){TG.ready();TG.expand();if(!localStorage.getItem('theme')){document.documentElement.dataset.theme=TG.colorScheme;paintTheme()}}
+  if(m.auth&&m.user&&!m.user.startsWith('tg:')){$('#who').innerHTML=` · ${E(m.user)} <a href="#" id="out">Выйти</a>`;
+    $('#out').onclick=async e=>{e.preventDefault();await fetch('/auth/logout',{method:'POST'});location.href='/login'}}
+  addEventListener('hashchange',route);route();
+}
+boot();
 </script></body></html>

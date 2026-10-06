@@ -1,8 +1,9 @@
 """CRM заправок газгольдеров: FastAPI + SQLite. Swagger: /docs"""
-import base64, csv, hashlib, hmac, io, os, secrets, sqlite3, time
-from contextlib import contextmanager
+import asyncio, base64, csv, hashlib, hmac, io, json, os, secrets, sqlite3, time
+from contextlib import asynccontextmanager, contextmanager
 from datetime import date, timedelta
 from typing import Optional
+from urllib.parse import parse_qsl
 
 import httpx
 from fastapi import APIRouter, BackgroundTasks, Depends, FastAPI, Header, HTTPException, Query, Request, Response
@@ -116,36 +117,111 @@ def _sign(payload: bytes) -> str:
     return hmac.new(_secret(), payload, hashlib.sha256).hexdigest()
 
 
-def make_token(user: str) -> str:
-    payload = f"{user}|{int(time.time()) + SESSION_DAYS * 86400}".encode()
+# Telegram Mini App: вход по подписи initData + белый список Telegram ID
+BOT_TOKEN = os.getenv("BOT_TOKEN", "")
+TG_ADMINS = {x.strip() for x in os.getenv("TG_ADMINS", "").split(",") if x.strip()}
+WEBAPP_URL = os.getenv("WEBAPP_URL", "")
+TG_ON = bool(BOT_TOKEN and TG_ADMINS)
+
+
+def make_token(user: str, days: int = SESSION_DAYS) -> str:
+    payload = f"{user}|{int(time.time()) + days * 86400}".encode()
     return base64.urlsafe_b64encode(payload).decode() + "." + _sign(payload)
 
 
+def _user_ok(user: str) -> bool:
+    return user in USERS or (TG_ON and user.startswith("tg:") and user[3:] in TG_ADMINS)
+
+
 def session_user(request: Request) -> Optional[str]:
+    """Сессия: cookie (сайт) или Authorization: Bearer (Mini App, там cookie ненадёжны)."""
     tok = request.cookies.get(COOKIE, "")
+    bearer = request.headers.get("authorization", "")
+    if not tok and bearer.lower().startswith("bearer "):
+        tok = bearer[7:].strip()
     try:
         b64, sig = tok.split(".")
         payload = base64.urlsafe_b64decode(b64)
         if not hmac.compare_digest(sig, _sign(payload)):
             return None
         user, exp = payload.decode().rsplit("|", 1)
-        return user if int(exp) > time.time() and user in USERS else None
+        return user if int(exp) > time.time() and _user_ok(user) else None
+    except Exception:
+        return None
+
+
+def verify_init_data(init_data: str) -> Optional[dict]:
+    """Проверка подписи Telegram WebApp initData (https://core.telegram.org/bots/webapps#validating-data)."""
+    try:
+        pairs = dict(parse_qsl(init_data, keep_blank_values=True))
+        got = pairs.pop("hash", "")
+        check = "\n".join(f"{k}={v}" for k, v in sorted(pairs.items()))
+        key = hmac.new(b"WebAppData", BOT_TOKEN.encode(), hashlib.sha256).digest()
+        calc = hmac.new(key, check.encode(), hashlib.sha256).hexdigest()
+        if not got or not hmac.compare_digest(calc, got):
+            return None
+        if time.time() - int(pairs["auth_date"]) > 86400:
+            return None
+        return json.loads(pairs["user"])
     except Exception:
         return None
 
 
 def auth(request: Request, x_api_key: str = Header(default=""), api_key: str = Query(default="")):
-    if not (USERS or API_KEY):
+    if not (USERS or TG_ON or API_KEY):
         return
     given = x_api_key or api_key
     if API_KEY and given and hmac.compare_digest(given.encode(), API_KEY.encode()):
         return  # ключ для интеграций (n8n и т.п.)
-    if USERS and session_user(request):
+    if (USERS or TG_ON) and session_user(request):
         return
-    raise HTTPException(401, "login required" if USERS else "bad api key")
+    raise HTTPException(401, "login required" if (USERS or TG_ON) else "bad api key")
 
 
-app = FastAPI(title="Gas CRM", docs_url=None, redoc_url=None, openapi_url=None)
+async def bot_loop():
+    """Мини-бот (long polling): /start присылает кнопку открытия Mini App, плюс кнопка меню."""
+    base = f"https://api.telegram.org/bot{BOT_TOKEN}"
+    async with httpx.AsyncClient(timeout=45) as h:
+        try:
+            await h.post(base + "/setChatMenuButton", json={"menu_button": {
+                "type": "web_app", "text": "CRM", "web_app": {"url": WEBAPP_URL}}})
+        except Exception:
+            pass
+        offset = 0
+        while True:
+            try:
+                r = (await h.get(base + "/getUpdates", params={
+                    "timeout": 30, "offset": offset, "allowed_updates": json.dumps(["message"])})).json()
+                if not r.get("ok"):
+                    await asyncio.sleep(15)
+                    continue
+                for u in r["result"]:
+                    offset = u["update_id"] + 1
+                    m = u.get("message") or {}
+                    if not m.get("text"):
+                        continue
+                    uid = str((m.get("from") or {}).get("id", ""))
+                    if uid in TG_ADMINS:
+                        msg = {"text": "Газгольдер CRM", "reply_markup": {"inline_keyboard": [[
+                            {"text": "Открыть CRM", "web_app": {"url": WEBAPP_URL}}]]}}
+                    else:
+                        msg = {"text": f"Нет доступа. Твой Telegram ID: {uid}"}
+                    await h.post(base + "/sendMessage", json={"chat_id": m["chat"]["id"], **msg})
+            except asyncio.CancelledError:
+                raise
+            except Exception:
+                await asyncio.sleep(5)
+
+
+@asynccontextmanager
+async def lifespan(_app):
+    task = asyncio.create_task(bot_loop()) if (TG_ON and WEBAPP_URL) else None
+    yield
+    if task:
+        task.cancel()
+
+
+app = FastAPI(title="Gas CRM", docs_url=None, redoc_url=None, openapi_url=None, lifespan=lifespan)
 
 
 @app.get("/openapi.json", include_in_schema=False, dependencies=[Depends(auth)])
@@ -182,6 +258,28 @@ def login(body: Login, request: Request, response: Response):
     return {"ok": True}
 
 
+class TgAuth(BaseModel):
+    initData: str
+
+
+@app.post("/auth/telegram", include_in_schema=False)
+def login_telegram(body: TgAuth, request: Request):
+    if not TG_ON:
+        raise HTTPException(400, "вход через Telegram не настроен")
+    ip = request.client.host if request.client else "?"
+    now = time.time()
+    _fails[ip] = [t for t in _fails.get(ip, []) if now - t < 600]
+    if len(_fails[ip]) >= 10:
+        raise HTTPException(429, "Слишком много попыток")
+    user = verify_init_data(body.initData)
+    if not user:
+        _fails[ip].append(now)
+        raise HTTPException(401, "Неверная подпись Telegram")
+    if str(user.get("id")) not in TG_ADMINS:
+        raise HTTPException(403, f"Нет доступа. Твой Telegram ID: {user.get('id')}")
+    return {"token": make_token(f"tg:{user['id']}", days=1), "user": f"tg:{user['id']}"}
+
+
 @app.post("/auth/logout", include_in_schema=False)
 def logout(response: Response):
     response.delete_cookie(COOKIE)
@@ -190,7 +288,9 @@ def logout(response: Response):
 
 @app.get("/auth/me", include_in_schema=False)
 def me(request: Request):
-    return {"auth": bool(USERS), "user": session_user(request) if USERS else None}
+    on = bool(USERS or TG_ON)
+    return {"auth": on, "user": session_user(request) if on else None,
+            "password_login": bool(USERS), "telegram": TG_ON}
 
 
 api = APIRouter(prefix="/api", dependencies=[Depends(auth)])
@@ -637,9 +737,7 @@ def _page(name):
 
 
 @app.get("/", include_in_schema=False)
-def index(request: Request):
-    if USERS and not session_user(request):
-        return RedirectResponse("/login")
+def index():
     return _page("index.html")
 
 
