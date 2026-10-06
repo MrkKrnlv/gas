@@ -1,12 +1,13 @@
 """CRM заправок газгольдеров: FastAPI + SQLite. Swagger: /docs"""
-import csv, io, os, sqlite3
+import base64, csv, hashlib, hmac, io, os, secrets, sqlite3, time
 from contextlib import contextmanager
 from datetime import date, timedelta
 from typing import Optional
 
 import httpx
-from fastapi import APIRouter, BackgroundTasks, Depends, FastAPI, Header, HTTPException, Query
-from fastapi.responses import FileResponse, StreamingResponse
+from fastapi import APIRouter, BackgroundTasks, Depends, FastAPI, Header, HTTPException, Query, Request, Response
+from fastapi.openapi.docs import get_swagger_ui_html
+from fastapi.responses import FileResponse, RedirectResponse, StreamingResponse
 from pydantic import BaseModel, field_validator
 
 DB_PATH = os.getenv("DB_PATH", "crm.db")
@@ -65,12 +66,119 @@ def db():
         con.close()
 
 
-def auth(x_api_key: str = Header(default=""), api_key: str = Query(default="")):
-    if API_KEY and API_KEY not in (x_api_key, api_key):
-        raise HTTPException(401, "bad api key")
+# ---------- авторизация ----------
+# USERS="mark:пароль1,friend:пароль2" (или один APP_PASSWORD). Пусто = без входа (локальный режим).
+USERS = {}
+for _p in os.getenv("USERS", "").split(","):
+    if ":" in _p:
+        _u, _pw = _p.split(":", 1)
+        if _u.strip() and _pw:
+            USERS[_u.strip()] = _pw
+if os.getenv("APP_PASSWORD") and not USERS:
+    USERS = {"admin": os.environ["APP_PASSWORD"]}
+SESSION_DAYS = int(os.getenv("SESSION_DAYS", "30"))
+COOKIE = "crm_session"
+_fails: dict = {}  # ip -> [время неудачных попыток]
 
 
-app = FastAPI(title="Gas CRM")
+def _secret() -> bytes:
+    if os.getenv("SECRET_KEY"):
+        return os.environ["SECRET_KEY"].encode()
+    path = os.path.join(os.path.dirname(os.path.abspath(DB_PATH)), ".secret")
+    try:
+        return open(path, "rb").read()
+    except FileNotFoundError:
+        key = secrets.token_bytes(32)
+        with open(path, "wb") as f:
+            f.write(key)
+        try:
+            os.chmod(path, 0o600)
+        except OSError:
+            pass
+        return key
+
+
+def _sign(payload: bytes) -> str:
+    return hmac.new(_secret(), payload, hashlib.sha256).hexdigest()
+
+
+def make_token(user: str) -> str:
+    payload = f"{user}|{int(time.time()) + SESSION_DAYS * 86400}".encode()
+    return base64.urlsafe_b64encode(payload).decode() + "." + _sign(payload)
+
+
+def session_user(request: Request) -> Optional[str]:
+    tok = request.cookies.get(COOKIE, "")
+    try:
+        b64, sig = tok.split(".")
+        payload = base64.urlsafe_b64decode(b64)
+        if not hmac.compare_digest(sig, _sign(payload)):
+            return None
+        user, exp = payload.decode().rsplit("|", 1)
+        return user if int(exp) > time.time() and user in USERS else None
+    except Exception:
+        return None
+
+
+def auth(request: Request, x_api_key: str = Header(default=""), api_key: str = Query(default="")):
+    if not (USERS or API_KEY):
+        return
+    given = x_api_key or api_key
+    if API_KEY and given and hmac.compare_digest(given.encode(), API_KEY.encode()):
+        return  # ключ для интеграций (n8n и т.п.)
+    if USERS and session_user(request):
+        return
+    raise HTTPException(401, "login required" if USERS else "bad api key")
+
+
+app = FastAPI(title="Gas CRM", docs_url=None, redoc_url=None, openapi_url=None)
+
+
+@app.get("/openapi.json", include_in_schema=False, dependencies=[Depends(auth)])
+def openapi_json():
+    return app.openapi()
+
+
+@app.get("/docs", include_in_schema=False, dependencies=[Depends(auth)])
+def docs():
+    return get_swagger_ui_html(openapi_url="/openapi.json", title="Gas CRM")
+
+
+class Login(BaseModel):
+    username: str
+    password: str
+
+
+@app.post("/auth/login", include_in_schema=False)
+def login(body: Login, request: Request, response: Response):
+    if not USERS:
+        raise HTTPException(400, "вход не настроен")
+    ip = request.client.host if request.client else "?"
+    now = time.time()
+    _fails[ip] = [t for t in _fails.get(ip, []) if now - t < 600]
+    if len(_fails[ip]) >= 10:
+        raise HTTPException(429, "Слишком много попыток, подожди 10 минут")
+    real = USERS.get(body.username.strip(), "")
+    ok = hmac.compare_digest(body.password.encode(), real.encode()) and body.username.strip() in USERS
+    if not ok:
+        _fails[ip].append(now)
+        raise HTTPException(401, "Неверный логин или пароль")
+    response.set_cookie(COOKIE, make_token(body.username.strip()), max_age=SESSION_DAYS * 86400,
+                        httponly=True, samesite="lax", secure=request.url.scheme == "https")
+    return {"ok": True}
+
+
+@app.post("/auth/logout", include_in_schema=False)
+def logout(response: Response):
+    response.delete_cookie(COOKIE)
+    return {"ok": True}
+
+
+@app.get("/auth/me", include_in_schema=False)
+def me(request: Request):
+    return {"auth": bool(USERS), "user": session_user(request) if USERS else None}
+
+
 api = APIRouter(prefix="/api", dependencies=[Depends(auth)])
 ADDED = {  # колонки, добавленные после первой версии: догоняем старые базы
     "clients": [("phone2", "TEXT"), ("telegram", "TEXT"), ("source", "TEXT")],
@@ -510,6 +618,19 @@ for _t in ("referrers", "clients", "tanks"):
 app.include_router(api)
 
 
+def _page(name):
+    return FileResponse(os.path.join(os.path.dirname(os.path.abspath(__file__)), "static", name))
+
+
 @app.get("/", include_in_schema=False)
-def index():
-    return FileResponse(os.path.join(os.path.dirname(__file__), "static", "index.html"))
+def index(request: Request):
+    if USERS and not session_user(request):
+        return RedirectResponse("/login")
+    return _page("index.html")
+
+
+@app.get("/login", include_in_schema=False)
+def login_page(request: Request):
+    if not USERS or session_user(request):
+        return RedirectResponse("/")
+    return _page("login.html")

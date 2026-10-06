@@ -33,3 +33,21 @@ FastAPI + SQLite, веб-интерфейс на `/`, Swagger на `/docs`.
 - Webhook: при `WEBHOOK_URL` на каждое событие шлётся POST `{"event": "refill.created|refill.updated|refill.done", "data": {...заявка...}}` (подходит для n8n).
 - Напоминания: n8n по крону раз в день дёргает `/api/due?days=3` и шлёт сообщения клиентам.
 - Создание заявки из формы/бота: `POST /api/refills`.
+
+## Вход по паролю и хостинг
+Локально без `USERS` вход выключен. Для хостинга задай в `.env` (см. `.env.example`):
+
+    USERS=mark:пароль1,friend:пароль2
+
+Появится страница `/login`, сессия 30 дней (httponly-cookie, подпись HMAC), после 10 неверных попыток блок на 10 минут. `API_KEY` остаётся для интеграций (n8n шлёт `X-API-Key`), `/docs` тоже под паролем.
+
+Деплой на VPS:
+
+    cp .env.example .env   # заполни USERS
+    docker compose up -d --build
+
+База лежит в `./data/crm.db` (бэкап = копия файла). Порт слушает только 127.0.0.1, наружу ставь HTTPS-прокси, иначе пароль уйдёт открытым текстом. Пример Caddy (`/etc/caddy/Caddyfile`):
+
+    crm.example.com {
+        reverse_proxy 127.0.0.1:8000
+    }

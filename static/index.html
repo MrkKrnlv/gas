@@ -68,7 +68,7 @@ dialog::backdrop{background:rgba(10,12,18,.55)}
 <div class="top"><div class="in">
   <div class="brand"><i>G</i>Газгольдер CRM</div>
   <nav id="nav"></nav><span class="grow"></span>
-  <span class="links"><a href="/docs" target="_blank">API</a><a href="#" id="csv">Экспорт CSV</a></span>
+  <span class="links"><a href="/docs" target="_blank">API</a><a href="#" id="csv">Экспорт CSV</a><span id="who"></span></span>
 </div></div>
 <main id="main"></main>
 <dialog id="dlg"><form method="dialog" id="form"></form></dialog>
@@ -80,7 +80,9 @@ const E=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt
 function toast(m){const t=$('#toast');t.textContent=m;t.style.display='block';clearTimeout(toast.t);toast.t=setTimeout(()=>t.style.display='none',5000)}
 async function api(path,opt={}){
   const r=await fetch('/api'+path,{...opt,headers:{'Content-Type':'application/json','X-API-Key':KEY}});
-  if(r.status===401){KEY=prompt('API ключ')||'';localStorage.setItem('key',KEY);return api(path,opt)}
+  if(r.status===401){const j=await r.clone().json().catch(()=>({}));
+    if(j.detail==='login required'){location.href='/login';throw new Error('login')}
+    KEY=prompt('API ключ')||'';localStorage.setItem('key',KEY);return api(path,opt)}
   if(!r.ok){const j=await r.json().catch(()=>({}));let m=j.detail;
     if(Array.isArray(m))m=m.map(e=>((e.loc||[]).slice(1).join('.')||'')+': '+(e.msg||'').replace('Value error, ','')).join('\n');
     toast(m||r.statusText);throw new Error(m)}
@@ -321,4 +323,6 @@ async function route(){
   }catch(e){console.error(e)}
 }
 addEventListener('hashchange',route);route();
+fetch('/auth/me').then(r=>r.json()).then(m=>{if(m.auth&&m.user){$('#who').innerHTML=` · ${E(m.user)} <a href="#" id="out">Выйти</a>`;
+  $('#out').onclick=async e=>{e.preventDefault();await fetch('/auth/logout',{method:'POST'});location.href='/login'}}}).catch(()=>{});
 </script></body></html>
